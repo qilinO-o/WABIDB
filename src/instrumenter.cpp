@@ -1,11 +1,23 @@
 #include "instrumenter.hpp"
 #include <fstream>
 #include <assert.h>
+#include <list>
 #include <wasm-io.h>
 #include <ir/module-utils.h>
-#include <wasm-stack.h>
 
-using namespace wasm_instrument;
+namespace wasm_instrument{
+std::string InstrumentResult2str(InstrumentResult result) {
+    std::string result_map[] = {
+        "success",
+        "config_error",
+        "file_path_error",
+        "open_module_error",
+        "instrument_error",
+        "validate_error",
+        "generation_error"
+    };
+    return result_map[int(result)];
+}
 
 InstrumentResult Instrumenter::_read_file() noexcept {
     // wasm MVP feature
@@ -17,10 +29,23 @@ InstrumentResult Instrumenter::_read_file() noexcept {
     } catch(wasm::ParseException &p) {
         p.dump(std::cerr);
         std::cerr << '\n';
+        return InstrumentResult::open_module_error;
     }
 
     if (this->module_.functions.empty()) {
         return InstrumentResult::open_module_error;
+    }
+    return InstrumentResult::success;
+}
+
+InstrumentResult Instrumenter::_write_file() noexcept {
+    wasm::ModuleWriter writer;
+    try {
+        writer.write(this->module_, this->config_.targetname);
+    } catch(wasm::ParseException &p) {
+        p.dump(std::cerr);
+        std::cerr << '\n';
+        return InstrumentResult::generation_error;
     }
     return InstrumentResult::success;
 }
@@ -42,6 +67,57 @@ bool _exp_match_targets(wasm::Expression* exp, std::vector<InstrumentOperation::
     return false;
 }
 
+std::list<wasm::StackInst*> _stack_ir_vec2list(const wasm::StackIR &stack_ir) {
+    std::list<wasm::StackInst*> stack_ir_list;
+    for (const auto &stack_instr : stack_ir) {
+        if (stack_instr == nullptr) continue;
+        stack_ir_list.push_back(stack_instr);
+    }
+    return std::move(stack_ir_list);
+}
+
+void _stack_ir_list2vec(const std::list<wasm::StackInst*> &stack_ir, wasm::StackIR &stack_ir_vec) {
+    stack_ir_vec.assign(stack_ir.begin(), stack_ir.end());
+}
+
+wasm::StackIR _stack_ir_list2vec(const std::list<wasm::StackInst*> &stack_ir) {
+    wasm::StackIR stack_ir_vec(stack_ir.begin(), stack_ir.end());
+    return std::move(stack_ir_vec);
+}
+
+void _print_stack_ir(const std::list<wasm::StackInst*> stack_ir_list, bool verbose = false) {
+    auto stack_ir_op2str = [](wasm::StackInst::Op op){
+        std::string op_map[] = {
+            "Basic",
+            "BlockBegin",
+            "BlockEnd",
+            "IfBegin",
+            "IfElse",
+            "IfEnd",
+            "LoopBegin",
+            "LoopEnd",
+            "TryBegin",
+            "Catch",
+            "CatchAll",
+            "Delegate",
+            "TryEnd",
+            "TryTableBegin",
+            "TryTableEnd"
+        };
+        return op_map[int(op)];
+    };
+    for (auto i = stack_ir_list.begin(); i != stack_ir_list.end(); i++) {
+        auto cur_stack_inst = *i;
+        auto cur_exp = cur_stack_inst->origin;
+        if (!verbose) {
+            std::printf("op: %s, exp: %s\n", stack_ir_op2str(cur_stack_inst->op).c_str(), wasm::getExpressionName(cur_exp));
+        } else {
+            std::printf("op: %s, exp: ", stack_ir_op2str(cur_stack_inst->op).c_str());
+            cur_exp->dump();
+        }
+    }
+}
+
 InstrumentResult Instrumenter::instrument() noexcept {
     if (this->config_.filename.empty() || this->config_.targetname.empty()) {
         return InstrumentResult::config_error;
@@ -53,65 +129,85 @@ InstrumentResult Instrumenter::instrument() noexcept {
         return state_result;
     }
 
+    // temp! manually make config
+    // example: insert a i32.const(0) and a drop before every call
+    InstrumentOperation op1;
+    op1.targets.push_back(InstrumentOperation::ExpName{
+    wasm::Expression::Id::CallId, InstrumentOperation::ExpName::ExpOp{.no_op=-1}});
+    this->config_.operations.push_back(op1);
+
+    wasm::Builder builder(this->module_);
+    wasm::StackIRGenerator sir_generator(this->module_, nullptr);
+    sir_generator.emit(builder.makeConst(0));
+    sir_generator.emit(builder.makeDrop(builder.makeConst(0)));
+    this->config_.operations[0].pre_instructions = std::move(sir_generator.getStackIR());
+    //————————————————————————————————————————————————————————
+
     // do stack ir pass on the module
     auto pass_runner = new wasm::PassRunner(&(this->module_));
     pass_runner->add("generate-stack-ir");
+    pass_runner->add("optimize-stack-ir");
     pass_runner->run();
     delete pass_runner;
 
     // do specific instrument operations in config
-    for (InstrumentOperation &operation : this->config_.operations) {
-        // once for one operation
-        // iter through functions in the module
-        wasm::ModuleUtils::iterDefinedFunctions(this->module_,
-        [&operation](const wasm::Function* func){
-            std::cout << "in function: " << func->name << " type: " << func->type.toString();
-      
-            // stack ir check
-            if (!func->stackIR) {
-                std::printf(" with no stack ir exists!\n");
-            } else {
-                std::printf(" with stack ir exp num: %ld\n", func->stackIR.get()->size());
-            }
+    // iter through functions in the module
+    auto func_visitor = [this](wasm::Function* func){
+        std::cout << "in function: " << func->name << " type: " << func->type.toString();
+    
+        // stack ir check
+        if (!func->stackIR) {
+            std::printf(" with no stack ir exists!\n");
+        } else {
+            std::printf(" with stack ir exp num: %ld\n", func->stackIR.get()->size());
+        }
 
-            // iter through the body in the current function (with Binaryen IR)
-            /*
-            assert(func->body->_id == wasm::Expression::Id::BlockId);
-            wasm::Block* func_body = static_cast<wasm::Block*>(func->body);
-            std::printf("; with body exp num: %ld\n", func_body->list.size());
+        // iter through the body in the current function (with Stack IR)
+        // transform the vector of stack ir to a list for better modification
+        std::list<wasm::StackInst*> stack_ir_list = _stack_ir_vec2list(*(func->stackIR.get()));
+        // _print_stack_ir(stack_ir_list);
+        
+        for (auto i = stack_ir_list.begin(); i != stack_ir_list.end(); i++) {
+            auto cur_stack_inst = *i;
+            auto cur_exp = cur_stack_inst->origin;
+            std::printf("iter at exp: %s\n", wasm::getExpressionName(cur_exp));
 
-            for(auto i = 0; i != func_body->list.size(); i++) {
-                wasm::Expression* cur_exp = func_body->list[i];
-                std::printf("iter at exp: %s\n", wasm::getExpressionName(cur_exp));
-                if (!_exp_match_targets(cur_exp, operation.targets)) continue;
-
-                // do instructions insertion
-                if (operation.location == InstrumentOperation::Loaction::before) {
-                    
-                } else if (operation.location == InstrumentOperation::Loaction::after) {
-
-                }
-            }
-            */
-
-            // iter through the body in the current function (with Stack IR)
-            auto stack_ir = func->stackIR.get();
-            for(auto i = 0; i != stack_ir->size(); i++) {
-                auto cur_stack_inst = stack_ir->operator[](i);
-                auto cur_exp = cur_stack_inst->origin;
-                std::printf("iter at exp: %s\n", wasm::getExpressionName(cur_exp));
-                if (!_exp_match_targets(cur_exp, operation.targets)) continue;
-
-                // do instructions insertion
-                if (operation.location == InstrumentOperation::Loaction::before) {
-                    
-                } else if (operation.location == InstrumentOperation::Loaction::after) {
-
-                }
+            // perform each operation on the current expression
+            // targets of all operations should be *Orthogonal* !
+            for (auto &operation : this->config_.operations) {
+                if (!_exp_match_targets(cur_exp, operation.targets)) {
+                    continue;
+                } 
+                stack_ir_list.splice(i, _stack_ir_vec2list(operation.pre_instructions));
+                std::advance(i, 1);
+                stack_ir_list.splice(i, _stack_ir_vec2list(operation.post_instructions));
+                std::advance(i, -1);
+                break;
             }
         }
-        );
+    
+        // write back the modified stack ir list to the func
+        auto new_stack_ir_vec = _stack_ir_list2vec(stack_ir_list);
+        func->stackIR = std::make_unique<wasm::StackIR>(new_stack_ir_vec);
+    };
+    try {
+        wasm::ModuleUtils::iterDefinedFunctions(this->module_, func_visitor);
+    } catch(...) {
+        return InstrumentResult::instrument_error;
+    }
+
+    // validate the module after modification
+    if (!BinaryenModuleValidate(&(this->module_))) {
+        return InstrumentResult::validate_error;
+    }
+
+    // write the module to binary file with name config.targetname
+    state_result = _write_file();
+    if (state_result != InstrumentResult::success) {
+        return state_result;
     }
     
     return InstrumentResult::success;
+}
+
 }
