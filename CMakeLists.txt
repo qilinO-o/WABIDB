@@ -12,3 +12,4 @@ set(BUILD_OBJECT_LIBS OFF)
 
 target_link_libraries(wasm_instrumenter binaryen)
 target_include_directories(wasm_instrumenter SYSTEM PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/third_party/binaryen/src)
+#target_compile_options(wasm_instrumenter PRIVATE -O3)

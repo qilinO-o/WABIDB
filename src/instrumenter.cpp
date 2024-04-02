@@ -1,4 +1,5 @@
 #include "instrumenter.hpp"
+#include "config-builder.hpp"
 #include <fstream>
 #include <assert.h>
 #include <list>
@@ -10,7 +11,6 @@ std::string InstrumentResult2str(InstrumentResult result) {
     std::string result_map[] = {
         "success",
         "config_error",
-        "file_path_error",
         "open_module_error",
         "instrument_error",
         "validate_error",
@@ -73,7 +73,7 @@ std::list<wasm::StackInst*> _stack_ir_vec2list(const wasm::StackIR &stack_ir) {
         if (stack_instr == nullptr) continue;
         stack_ir_list.push_back(stack_instr);
     }
-    return std::move(stack_ir_list);
+    return stack_ir_list;
 }
 
 void _stack_ir_list2vec(const std::list<wasm::StackInst*> &stack_ir, wasm::StackIR &stack_ir_vec) {
@@ -82,7 +82,7 @@ void _stack_ir_list2vec(const std::list<wasm::StackInst*> &stack_ir, wasm::Stack
 
 wasm::StackIR _stack_ir_list2vec(const std::list<wasm::StackInst*> &stack_ir) {
     wasm::StackIR stack_ir_vec(stack_ir.begin(), stack_ir.end());
-    return std::move(stack_ir_vec);
+    return stack_ir_vec;
 }
 
 void _print_stack_ir(const std::list<wasm::StackInst*> stack_ir_list, bool verbose = false) {
@@ -119,7 +119,12 @@ void _print_stack_ir(const std::list<wasm::StackInst*> stack_ir_list, bool verbo
 }
 
 InstrumentResult Instrumenter::instrument() noexcept {
-    if (this->config_.filename.empty() || this->config_.targetname.empty()) {
+    if (!this->is_set_ || this->config_.filename.empty() || this->config_.targetname.empty()) {
+        return InstrumentResult::config_error;
+    }
+    ConfigBuilder builder;
+    auto added_instructions = builder.makeConfig(this->config_);
+    if (!added_instructions) {
         return InstrumentResult::config_error;
     }
 
@@ -128,20 +133,6 @@ InstrumentResult Instrumenter::instrument() noexcept {
     if (state_result != InstrumentResult::success) {
         return state_result;
     }
-
-    // temp! manually make config
-    // example: insert a i32.const(0) and a drop before every call
-    InstrumentOperation op1;
-    op1.targets.push_back(InstrumentOperation::ExpName{
-    wasm::Expression::Id::CallId, InstrumentOperation::ExpName::ExpOp{.no_op=-1}});
-    this->config_.operations.push_back(op1);
-
-    wasm::Builder builder(this->module_);
-    wasm::StackIRGenerator sir_generator(this->module_, nullptr);
-    sir_generator.emit(builder.makeConst(0));
-    sir_generator.emit(builder.makeDrop(builder.makeConst(0)));
-    this->config_.operations[0].pre_instructions = std::move(sir_generator.getStackIR());
-    //————————————————————————————————————————————————————————
 
     // do stack ir pass on the module
     auto pass_runner = new wasm::PassRunner(&(this->module_));
@@ -152,15 +143,11 @@ InstrumentResult Instrumenter::instrument() noexcept {
 
     // do specific instrument operations in config
     // iter through functions in the module
-    auto func_visitor = [this](wasm::Function* func){
-        std::cout << "in function: " << func->name << " type: " << func->type.toString();
+    auto func_visitor = [this, &added_instructions](wasm::Function* func){
+        std::cout << "in function: " << func->name << " type: " << func->type.toString() << std::endl;
     
         // stack ir check
-        if (!func->stackIR) {
-            std::printf(" with no stack ir exists!\n");
-        } else {
-            std::printf(" with stack ir exp num: %ld\n", func->stackIR.get()->size());
-        }
+        assert(func->stackIR.get() != nullptr);
 
         // iter through the body in the current function (with Stack IR)
         // transform the vector of stack ir to a list for better modification
@@ -174,13 +161,15 @@ InstrumentResult Instrumenter::instrument() noexcept {
 
             // perform each operation on the current expression
             // targets of all operations should be *Orthogonal* !
+            int op_num = 0;
             for (auto &operation : this->config_.operations) {
                 if (!_exp_match_targets(cur_exp, operation.targets)) {
+                    op_num++;
                     continue;
                 } 
-                stack_ir_list.splice(i, _stack_ir_vec2list(operation.pre_instructions));
+                stack_ir_list.splice(i, _stack_ir_vec2list(added_instructions->vec[op_num].pre_instructions));
                 std::advance(i, 1);
-                stack_ir_list.splice(i, _stack_ir_vec2list(operation.post_instructions));
+                stack_ir_list.splice(i, _stack_ir_vec2list(added_instructions->vec[op_num].post_instructions));
                 std::advance(i, -1);
                 break;
             }

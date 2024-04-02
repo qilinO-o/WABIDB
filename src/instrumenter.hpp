@@ -1,5 +1,8 @@
+#ifndef instrumenter_h
+#define instrumenter_h
+
 #include "binaryen-c.h"
-#include "wasm.h"
+#include <wasm.h>
 #include <wasm-stack.h>
 #include <vector>
 
@@ -20,8 +23,8 @@ struct InstrumentOperation final {
     };
     // targets of all operations should be *Orthogonal* !
     std::vector<ExpName> targets;
-    std::vector<wasm::StackInst*> pre_instructions;
-    std::vector<wasm::StackInst*> post_instructions;
+    std::vector<std::string> pre_instructions;
+    std::vector<std::string> post_instructions;
 };
 
 // config for the instrumentation task
@@ -35,7 +38,6 @@ struct InstrumentConfig final {
 enum InstrumentResult {
     success = 0,
     config_error,
-    file_path_error,
     open_module_error,
     instrument_error,
     validate_error,
@@ -48,11 +50,6 @@ std::string InstrumentResult2str(InstrumentResult result);
 class Instrumenter final {
 public:
     Instrumenter() noexcept = default;
-    explicit Instrumenter(InstrumentConfig &config) noexcept {
-        this->config_.filename = config.filename;
-        this->config_.targetname = config.targetname;
-        this->config_.operations.assign(config.operations.begin(), config.operations.end());
-    }
     Instrumenter(const Instrumenter &a) = delete;
     Instrumenter(Instrumenter &&a) = delete;
     Instrumenter &operator=(const Instrumenter &) = delete;
@@ -60,13 +57,25 @@ public:
     ~Instrumenter() noexcept = default;
 
     InstrumentResult instrument() noexcept;
+    void setConfig(InstrumentConfig &config) noexcept {
+        this->config_.filename = config.filename;
+        this->config_.targetname = config.targetname;
+        this->config_.operations.assign(config.operations.begin(), config.operations.end());
+        this->is_set_ = true;
+    }
+    void clear() {
+        this->is_set_ = false;
+    }
     
 private:
     InstrumentConfig config_;
     wasm::Module module_;
+    bool is_set_ = false;
 
     InstrumentResult _read_file() noexcept;
     InstrumentResult _write_file() noexcept;
 };
 
 } // namespace wasm_instrument
+
+#endif
