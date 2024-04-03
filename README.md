@@ -1,4 +1,4 @@
-# WABIDB
+# [WIP]WABIDB
 
 `WABIDB` is an instrumentation and debug framework for WebAssembly Binary. The repository uses `Binaryen` as a parse backend in order to be up-to-date with the latest WASM standards and proposals.
 
@@ -48,6 +48,7 @@ void routine() {
 ## API
 ### General Instrumentation
 The config of general instrumentation is designed for a match-and-insert semantics. It finds expressions in functions that match vec<target> one by one, and insert certain instructions before and after the specific expression.
+>`XXXId` in `wasm::Expression::Id`. `XXXOp` now only support unary and binary instructions in `wasm::UnaryOP` and `wasm::BinaryOP`, `-1` for instructions with no Op. See the definitions in `wasm.h` of `Binaryen`.
 ```cpp
 op.targets.push_back(InstrumentOperation::ExpName{
   wasm::Expression::Id::[XXXId], 
@@ -76,7 +77,7 @@ General instrumentation can be done by `setConfig()` for an `Instrumenter` and t
 
 ```
 
-### Instruction Info
+## Support Infomation
 Default support WebAssembly version 1 (MVP), can be easily set for further features. Using `Binaryen` enables `WABIDB` to support most up-to-date proposals. 
 
 Now use an experimental WAT-parser of `Binaryen`, which may be switched when [`issue#6208`](https://github.com/WebAssembly/binaryen/issues/6208) is fully resolved.
