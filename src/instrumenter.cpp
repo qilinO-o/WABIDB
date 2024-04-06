@@ -14,25 +14,26 @@ std::string InstrumentResult2str(InstrumentResult result) {
         "open_module_error",
         "instrument_error",
         "validate_error",
-        "generation_error"
+        "generation_error",
+        "invalid_state"
     };
     return result_map[int(result)];
 }
 
 InstrumentResult Instrumenter::_read_file() noexcept {
     // wasm MVP feature
-    this->module_.features.enable(wasm::FeatureSet::MVP);
+    this->module_->features.enable(wasm::FeatureSet::MVP);
 
     wasm::ModuleReader reader;
     try {
-        reader.read(this->config_.filename, this->module_, "");
+        reader.read(this->config_.filename, *(this->module_), "");
     } catch(wasm::ParseException &p) {
         p.dump(std::cerr);
         std::cerr << '\n';
         return InstrumentResult::open_module_error;
     }
 
-    if (this->module_.functions.empty()) {
+    if (this->module_->functions.empty()) {
         return InstrumentResult::open_module_error;
     }
     return InstrumentResult::success;
@@ -41,7 +42,7 @@ InstrumentResult Instrumenter::_read_file() noexcept {
 InstrumentResult Instrumenter::_write_file() noexcept {
     wasm::ModuleWriter writer;
     try {
-        writer.write(this->module_, this->config_.targetname);
+        writer.write(*(this->module_), this->config_.targetname);
     } catch(wasm::ParseException &p) {
         p.dump(std::cerr);
         std::cerr << '\n';
@@ -118,32 +119,47 @@ void _print_stack_ir(const std::list<wasm::StackInst*> stack_ir_list, bool verbo
     }
 }
 
-InstrumentResult Instrumenter::instrument() noexcept {
-    if (!this->is_set_ || this->config_.filename.empty() || this->config_.targetname.empty()) {
+InstrumentResult Instrumenter::setConfig(InstrumentConfig &config) noexcept {
+    if (this->state_ != InstrumentState::idle) {
+        std::cerr << "Instrumenter: wrong state for setConfig()!" << std::endl;
+        return InstrumentResult::invalid_state;
+    }
+    this->config_.filename = config.filename;
+    this->config_.targetname = config.targetname;
+    this->config_.operations.assign(config.operations.begin(), config.operations.end());
+    if (this->config_.filename.empty() || this->config_.targetname.empty()) {
         return InstrumentResult::config_error;
     }
     ConfigBuilder builder;
-    auto added_instructions = builder.makeConfig(this->config_);
-    if (!added_instructions) {
+    this->added_instructions_ = builder.makeConfig(*(this->mallocator_), this->config_);
+    if (!this->added_instructions_) {
         return InstrumentResult::config_error;
     }
-
     // read file to the instrumenter
     InstrumentResult state_result = _read_file();
     if (state_result != InstrumentResult::success) {
         return state_result;
     }
-
     // do stack ir pass on the module
-    auto pass_runner = new wasm::PassRunner(&(this->module_));
+    auto pass_runner = new wasm::PassRunner(this->module_);
     pass_runner->add("generate-stack-ir");
     pass_runner->add("optimize-stack-ir");
     pass_runner->run();
     delete pass_runner;
 
+    this->state_ = InstrumentState::valid;
+    return InstrumentResult::success;
+}
+
+InstrumentResult Instrumenter::instrument() noexcept {
+    if (this->state_ != InstrumentState::valid) {
+        std::cerr << "Instrumenter: wrong state for instrument()!" << std::endl;
+        return InstrumentResult::invalid_state;
+    }
+
     // do specific instrument operations in config
     // iter through functions in the module
-    auto func_visitor = [this, &added_instructions](wasm::Function* func){
+    auto func_visitor = [this](wasm::Function* func){
         std::cout << "in function: " << func->name << " type: " << func->type.toString() << std::endl;
     
         // stack ir check
@@ -167,9 +183,11 @@ InstrumentResult Instrumenter::instrument() noexcept {
                     op_num++;
                     continue;
                 } 
-                stack_ir_list.splice(i, _stack_ir_vec2list(added_instructions->vec[op_num].pre_instructions));
+                stack_ir_list.splice(i, _stack_ir_vec2list(
+                    this->added_instructions_->vec[op_num].pre_instructions));
                 std::advance(i, 1);
-                stack_ir_list.splice(i, _stack_ir_vec2list(added_instructions->vec[op_num].post_instructions));
+                stack_ir_list.splice(i, _stack_ir_vec2list(
+                    this->added_instructions_->vec[op_num].post_instructions));
                 std::advance(i, -1);
                 break;
             }
@@ -180,22 +198,25 @@ InstrumentResult Instrumenter::instrument() noexcept {
         func->stackIR = std::make_unique<wasm::StackIR>(new_stack_ir_vec);
     };
     try {
-        wasm::ModuleUtils::iterDefinedFunctions(this->module_, func_visitor);
+        wasm::ModuleUtils::iterDefinedFunctions(*(this->module_), func_visitor);
     } catch(...) {
         return InstrumentResult::instrument_error;
     }
 
     // validate the module after modification
-    if (!BinaryenModuleValidate(&(this->module_))) {
+    if (!BinaryenModuleValidate(this->module_)) {
         return InstrumentResult::validate_error;
     }
+    
+    return InstrumentResult::success;
+}
 
-    // write the module to binary file with name config.targetname
-    state_result = _write_file();
+InstrumentResult Instrumenter::writeBinary() noexcept {
+    InstrumentResult state_result = _write_file();
     if (state_result != InstrumentResult::success) {
         return state_result;
     }
-    
+    this->state_ = InstrumentState::written;
     return InstrumentResult::success;
 }
 

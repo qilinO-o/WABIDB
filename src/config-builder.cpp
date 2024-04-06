@@ -49,18 +49,18 @@ std::string _makeModuleString(const std::vector<InstrumentOperation>& operations
 // which can be used directly for class Instrumenter to do instrument()
 // this function is called by class Instrumenter when dealing with config
 // return nullptr aka InstrumentResult::config_error
-AddedInstructions* ConfigBuilder::makeConfig(const InstrumentConfig &config) noexcept {
+AddedInstructions* ConfigBuilder::makeConfig(wasm::Module &mallocator, const InstrumentConfig &config) noexcept {
     AddedInstructions* added_instructions = new AddedInstructions;
     added_instructions->vec.resize(config.operations.size());
     auto module_str = _makeModuleString(config.operations);
     //std::cout << module_str << std::endl;
-    if (!_readTextData(module_str, *(this->temp_module_))) {
+    if (!_readTextData(module_str, mallocator)) {
         delete added_instructions;
         return nullptr;
     }
 
     // do stack ir pass on the module
-    auto pass_runner = new wasm::PassRunner(this->temp_module_);
+    auto pass_runner = new wasm::PassRunner(&mallocator);
     pass_runner->add("generate-stack-ir");
     pass_runner->add("optimize-stack-ir");
     pass_runner->run();
@@ -69,8 +69,8 @@ AddedInstructions* ConfigBuilder::makeConfig(const InstrumentConfig &config) noe
     int op_num = 1;
     for (const auto& operation : config.operations) {
         std::string op_num_str = std::to_string(op_num);
-        auto func1 = BinaryenGetFunction(this->temp_module_, (op_num_str + "_1").c_str());
-        auto func2 = BinaryenGetFunction(this->temp_module_, (op_num_str + "_2").c_str());
+        auto func1 = BinaryenGetFunction(&mallocator, (op_num_str + "_1").c_str());
+        auto func2 = BinaryenGetFunction(&mallocator, (op_num_str + "_2").c_str());
         assert(func1 != nullptr);
         assert(func2 != nullptr);
         assert(func1->stackIR.get() != nullptr);
@@ -81,6 +81,8 @@ AddedInstructions* ConfigBuilder::makeConfig(const InstrumentConfig &config) noe
         for (auto i = 0; i < func2->stackIR.get()->size() - 1; i++) {
             added_instructions->vec[op_num - 1].post_instructions.push_back((*(func2->stackIR.get()))[i]);
         }
+        BinaryenRemoveFunction(&mallocator, func1->name.toString().c_str());
+        BinaryenRemoveFunction(&mallocator, func2->name.toString().c_str());
         op_num++;
     }
 

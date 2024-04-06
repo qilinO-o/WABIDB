@@ -5,33 +5,20 @@
 
 namespace wasm_instrument {
 
-// 1 to 1 related to config.operations
-// data structure for transformed instruction string to stack ir
-struct AddedInstructions {
-    struct AddedInstruction {
-        std::vector<wasm::StackInst*> pre_instructions;
-        std::vector<wasm::StackInst*> post_instructions;
-    };
-    std::vector<AddedInstruction> vec;
-};
-
 // construct and use by the class Instrumenter
+// serve to parse operations in a config
 class ConfigBuilder final {
 public:
-    ConfigBuilder() noexcept {
-        temp_module_ = BinaryenModuleCreate();
-    };
+    ConfigBuilder() noexcept = default;
     ConfigBuilder(const ConfigBuilder &a) = delete;
     ConfigBuilder(ConfigBuilder &&a) = delete;
     ConfigBuilder &operator=(const ConfigBuilder &) = delete;
     ConfigBuilder &operator=(ConfigBuilder &&) = delete;
-    ~ConfigBuilder() noexcept {
-        BinaryenModuleDispose(temp_module_);
-    };
+    ~ConfigBuilder() noexcept = default;
 
-    AddedInstructions* makeConfig(const InstrumentConfig &config) noexcept;
+    AddedInstructions* makeConfig(wasm::Module &mallocator, const InstrumentConfig &config) noexcept;
 private:
-    wasm::Module* temp_module_;
+
 };
 
 }

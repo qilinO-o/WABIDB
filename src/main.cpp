@@ -24,8 +24,11 @@ int main(int argc, char **argv) {
     config.operations.push_back(op1);
     
     Instrumenter instrumenter;
-    instrumenter.setConfig(config);
-    InstrumentResult result = instrumenter.instrument();
+    InstrumentResult result = instrumenter.setConfig(config);
+    assert(result == InstrumentResult::success);
+    result = instrumenter.instrument();
+    assert(result == InstrumentResult::success);
+    result = instrumenter.writeBinary();
     
     std::printf("End instrument with result: %s\n", InstrumentResult2str(result).c_str());
     return 0;

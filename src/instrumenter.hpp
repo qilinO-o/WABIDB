@@ -27,6 +27,16 @@ struct InstrumentOperation final {
     std::vector<std::string> post_instructions;
 };
 
+// 1 to 1 related to config.operations
+// data structure for transformed instruction string to stack ir
+struct AddedInstructions {
+    struct AddedInstruction {
+        std::vector<wasm::StackInst*> pre_instructions;
+        std::vector<wasm::StackInst*> post_instructions;
+    };
+    std::vector<AddedInstruction> vec;
+};
+
 // config for the instrumentation task
 // do several /operations/ on module from /filename/ and write to /targetname/
 struct InstrumentConfig final {
@@ -41,36 +51,65 @@ enum InstrumentResult {
     open_module_error,
     instrument_error,
     validate_error,
-    generation_error
+    generation_error,
+    invalid_state
+};
+
+enum InstrumentState {
+    // before set config,
+    idle = 0,
+    // after set config, module is read and stack ir is emitted
+    // all further instrumentations can be done at this state
+    valid,
+    // end instrumentation, module is written out
+    written
 };
 
 std::string InstrumentResult2str(InstrumentResult result);
 
 // new Instrumenter with config and run with instrument()
+// also provide other useful utilities including create wasm classes(globals, imports, expressions) etc.
 class Instrumenter final {
 public:
-    Instrumenter() noexcept = default;
+    Instrumenter() noexcept {
+        this->module_ = BinaryenModuleCreate();
+        this->mallocator_ = BinaryenModuleCreate();
+    }
     Instrumenter(const Instrumenter &a) = delete;
     Instrumenter(Instrumenter &&a) = delete;
     Instrumenter &operator=(const Instrumenter &) = delete;
     Instrumenter &operator=(Instrumenter &&) = delete;
-    ~Instrumenter() noexcept = default;
-
-    InstrumentResult instrument() noexcept;
-    void setConfig(InstrumentConfig &config) noexcept {
-        this->config_.filename = config.filename;
-        this->config_.targetname = config.targetname;
-        this->config_.operations.assign(config.operations.begin(), config.operations.end());
-        this->is_set_ = true;
+    ~Instrumenter() noexcept {
+        BinaryenModuleDispose(this->mallocator_);
     }
+
+    // set config, read module and make stack ir emitted
+    // prepare for further instrumentations
+    InstrumentResult setConfig(InstrumentConfig &config) noexcept;
+    // do the general instrumentations with match-and-insert semantics
+    // and validate the modified module
+    InstrumentResult instrument() noexcept;
+    // write the module to binary file with name config.targetname
+    InstrumentResult writeBinary() noexcept;
+
     void clear() {
-        this->is_set_ = false;
+        this->state_ = InstrumentState::idle;
+        BinaryenModuleDispose(this->module_);
+        BinaryenModuleDispose(this->mallocator_);
+        delete this->added_instructions_;
+        this->module_ = BinaryenModuleCreate();
+        this->mallocator_ = BinaryenModuleCreate();
     }
     
 private:
     InstrumentConfig config_;
-    wasm::Module module_;
-    bool is_set_ = false;
+    wasm::Module* module_;
+    InstrumentState state_ = InstrumentState::idle;
+
+    // allocator for newly created wasm classes(e.g.expressions, new globals, imports etc.)
+    // so it must be created at first and deleted at last
+    wasm::Module* mallocator_;
+    AddedInstructions* added_instructions_; 
 
     InstrumentResult _read_file() noexcept;
     InstrumentResult _write_file() noexcept;
