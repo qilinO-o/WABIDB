@@ -14,9 +14,10 @@ struct InstrumentOperation final {
     struct ExpName {
         wasm::Expression::Id id;
         union ExpOp {
-            int no_op; // only set as -1 for no op expressions
+            int no_op; // -1 to ignore Op check
             wasm::UnaryOp uop;
             wasm::BinaryOp bop;
+            wasm::StackInst::Op cop; // control flow op mark its begin or end
             // to be added more op id
         };
         ExpOp exp_op;

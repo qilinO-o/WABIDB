@@ -68,6 +68,29 @@ bool _exp_match_targets(wasm::Expression* exp, std::vector<InstrumentOperation::
     return false;
 }
 
+bool _isControlFlowStructure(wasm::Expression::Id id) {
+    return (id == wasm::Expression::Id::BlockId) || (id == wasm::Expression::Id::IfId) 
+        || (id == wasm::Expression::Id::LoopId);
+}
+
+bool _exp_match_targets(wasm::StackInst* exp, std::vector<InstrumentOperation::ExpName> &targets) {
+    for (const auto &target : targets) {
+        if (exp->origin->_id == target.id) {
+            if (target.exp_op.no_op == -1) return true;
+            else if (target.id == wasm::Expression::Id::UnaryId) {
+                wasm::Unary* unary_exp = static_cast<wasm::Unary*>(exp->origin);
+                if (unary_exp->op == target.exp_op.uop) return true;
+            } else if (target.id == wasm::Expression::Id::BinaryId) {
+                wasm::Binary* binary_exp = static_cast<wasm::Binary*>(exp->origin);
+                if (binary_exp->op == target.exp_op.bop) return true;
+            } else if (_isControlFlowStructure(target.id)) {
+                if (exp->op == target.exp_op.cop) return true;
+            }
+        }
+    }
+    return false;
+}
+
 std::list<wasm::StackInst*> _stack_ir_vec2list(const wasm::StackIR &stack_ir) {
     std::list<wasm::StackInst*> stack_ir_list;
     for (const auto &stack_instr : stack_ir) {
@@ -179,7 +202,7 @@ InstrumentResult Instrumenter::instrument() noexcept {
             // targets of all operations should be *Orthogonal* !
             int op_num = 0;
             for (auto &operation : this->config_.operations) {
-                if (!_exp_match_targets(cur_exp, operation.targets)) {
+                if (!_exp_match_targets(cur_stack_inst, operation.targets)) {
                     op_num++;
                     continue;
                 } 
