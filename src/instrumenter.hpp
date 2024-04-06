@@ -92,6 +92,7 @@ public:
     // write the module to binary file with name config.targetname
     InstrumentResult writeBinary() noexcept;
 
+    // instrumenter can be re-used after call clear()
     void clear() {
         this->state_ = InstrumentState::idle;
         BinaryenModuleDispose(this->module_);
@@ -100,6 +101,18 @@ public:
         this->module_ = BinaryenModuleCreate();
         this->mallocator_ = BinaryenModuleCreate();
     }
+
+    InstrumentResult instrumentFunction() noexcept;
+    wasm::Global* addGlobal() noexcept;
+    wasm::Function* addFunction() noexcept;
+    void addImportFunction() noexcept;
+    void addImportGlobal() noexcept;
+    void addImportMemory() noexcept;
+    InstrumentResult addExport() noexcept;
+
+    wasm::Global* getGlobal();
+    wasm::Function* getFunction();
+    wasm::Export* getExport();
     
 private:
     InstrumentConfig config_;
