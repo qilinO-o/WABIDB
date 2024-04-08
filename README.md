@@ -1,6 +1,6 @@
 # [WIP]WABIDB
 
-`WABIDB` is an instrumentation and debug framework for WebAssembly Binary. The repository uses [`Binaryen`](https://github.com/WebAssembly/binaryen) as a parse backend in order to be up-to-date with the latest WASM standards and proposals.
+`WABIDB` is an instrumentation and debug framework for WebAssembly Binary. This repository uses [`Binaryen`](https://github.com/WebAssembly/binaryen) as a parse backend in order to be up-to-date with the latest WASM standards and proposals.
 
 ## Building
 `WABIDB` uses git submodules, so before you build you will have to initialize the submodules:
@@ -16,7 +16,9 @@ cmake .. && make
 
 ## Usage Instructions
 
-`WABIDB` uses `class instrumenter` internally, which is also potentially useful for individual usage in other projects. You only need to import `instrumenter.hpp` for basic C++ APIs. It provides a general wasm binary instrumentation tool that is easy to use and powerful as well.
+`WABIDB` uses `class Instrumenter` internally, which is also potentially useful for individual usage in other projects. You only need to import `instrumenter.hpp` for basic C++ APIs. It provides a general wasm binary instrumentation tool that is easy to use and powerful as well.
+
+Note that these APIs should be called in a certain sequence described in section [Calling Sequence](#calling-sequence).
 
 The `routine()` method below covers basic usage of the APIs:
 ```cpp
@@ -63,22 +65,56 @@ op.[POSITION]_instructions = {
 ```
 General instrumentation can be done by `setConfig()` for an `Instrumenter`, then call `instrument()` and finally call `writeBinary()`.
 
-### Add Import
+### Add Declaration
 ```cpp
+Global* addGlobal(const char* name, 
+                  BinaryenType type, 
+                  bool if_mutable, 
+                  BinaryenLiteral value)
+void addFunctions(vector<string> &names,
+                  vector<string> &func_bodies)
+```
 
+### Add Import
+Mostly similar to API of `Binaryen`:
+```cpp
+void addImportFunction(const char* internal_name,
+                       const char* external_module_name,
+                       const char* external_base_name,
+                       ...[specific attributes])
+void addImportGlobal(...)
+void addImportMemory(...)
 ```
 
 ### Add Export
 ```cpp
-
+Export* addExport(const char* internal_name, 
+                  const char* external_name)
 ```
 
 ### Find Operations
 ```cpp
-
+Global*   getGlobal(const char* name)
+Function* getFunction(const char* name)
+Export*   getExport(const char* external_name)
+Function* getStartFunction()
 ```
 
-## Support Infomation
-Default support WebAssembly version 1 (MVP), can be easily set for further features. Using `Binaryen` enables `WABIDB` to support most up-to-date proposals. 
+## Calling Sequence
+When validating the instrumented instructions, we should guarentee that newly defined `global`s, `import`s and `function`s can be found. Thus, a calling sequence should be obeyed as follow:
+| Phase | State       | Call             |
+| :---: | :---------: | :--------------: |
+| 1     | read module | `setConfig()`    |
+| 2     | declaration | `addImport[*]()` |
+|       |             | `addGlobal()`    |
+|       |             | `addFunctions()` |
+|       |             | `addExport()`    |
+| 3     | instrument  | `instrument()`   |
+| 4     | write back  | `writeBinary()`  |
+
+All `get[*]()` can be called in phase 2 & 3.
+
+## Support Information
+Default support WebAssembly version 1 (MVP), can be easily set for further features. Using `Binaryen` enables `WABIDB` to support most up-to-date proposals.
 
 Now use an experimental WAT-parser of `Binaryen`, which may be switched when [`issue#6208`](https://github.com/WebAssembly/binaryen/issues/6208) is fully resolved.
