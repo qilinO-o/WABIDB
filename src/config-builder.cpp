@@ -7,7 +7,7 @@ namespace wasm_instrument {
 // binaryen has experimental text parser for wabt output(aka stack style)
 // while it is disabled by flag useNewWATParser = false
 // reimplement it here
-static bool _readTextData(const std::string& input, wasm::Module& wasm) {
+bool _readTextData(const std::string& input, wasm::Module& wasm) {
     std::string_view in(input.c_str());
     if (auto parsed = wasm::WATParser::parseModule(wasm, in); auto err = parsed.getErr()) {
         std::cerr << err->msg;
@@ -18,7 +18,7 @@ static bool _readTextData(const std::string& input, wasm::Module& wasm) {
 
 // transform two lists to a well-formed func string like .wat
 std::string _makeIRString(const std::vector<std::string>& pre_list, 
-        const std::vector<std::string>& post_list, int func_num) {
+                        const std::vector<std::string>& post_list, int func_num) {
     std::string module_str = "(func $" + std::to_string(func_num) + "_1\n";
     for (const auto& instr_str : pre_list) {
         module_str += instr_str;

@@ -243,4 +243,204 @@ InstrumentResult Instrumenter::writeBinary() noexcept {
     return InstrumentResult::success;
 }
 
+wasm::Global* Instrumenter::getGlobal(const char* name) noexcept {
+    if (this->state_ != InstrumentState::valid) {
+        std::cerr << "Instrumenter: wrong state for getGlobal()!" << std::endl;
+        return nullptr;
+    }
+    return BinaryenGetGlobal(this->module_, name);
+}
+
+wasm::Function* Instrumenter::getFunction(const char* name) noexcept {
+    if (this->state_ != InstrumentState::valid) {
+        std::cerr << "Instrumenter: wrong state for getFunction()!" << std::endl;
+        return nullptr;
+    }
+    return BinaryenGetFunction(this->module_, name);
+}
+
+wasm::Export* Instrumenter::getExport(const char* external_name) noexcept {
+    if (this->state_ != InstrumentState::valid) {
+        std::cerr << "Instrumenter: wrong state for getExport()!" << std::endl;
+        return nullptr;
+    }
+    return BinaryenGetExport(this->module_, external_name);
+}
+
+wasm::Function* Instrumenter::getStartFunction() noexcept {
+    if (this->state_ != InstrumentState::valid) {
+        std::cerr << "Instrumenter: wrong state for getStartFunction()!" << std::endl;
+        return nullptr;
+    }
+    auto t = this->getExport("_start");
+    return this->module_->getFunctionOrNull(t->value);
+}
+
+wasm::Global* Instrumenter::addGlobal(const char* name, 
+                            BinaryenType type, 
+                            bool if_mutable, 
+                            BinaryenLiteral value) noexcept 
+{
+    if (this->state_ != InstrumentState::valid) {
+        std::cerr << "Instrumenter: wrong state for addGlobal()!" << std::endl;
+        return nullptr;
+    }
+    auto ret = this->getGlobal(name);
+    if (ret != nullptr) {
+        std::cerr << "Instrumenter: global name: "<< name << " already exists!" << std::endl;
+        return nullptr;
+    }
+    auto init = BinaryenConst(this->mallocator_, value);
+    ret = BinaryenAddGlobal(this->module_, name, type, if_mutable, init);
+    BinaryenAddGlobal(this->mallocator_, name, type, if_mutable, init);
+    return ret;
+}
+
+void Instrumenter::addFunctions(std::vector<std::string> &names, std::vector<std::string> &func_bodies) noexcept {
+    assert(names.size() == func_bodies.size());
+    if (this->state_ != InstrumentState::valid) {
+        std::cerr << "Instrumenter: wrong state for addFunction()!" << std::endl;
+        return;
+    }
+    for (auto i = 0; i < names.size(); i++) {
+        auto cur = this->getFunction(names[i].c_str());
+        if (cur != nullptr) {
+            std::cerr << "Instrumenter: function name: "<< names[i] << " already exists!" << std::endl;
+            return;
+        }
+    }
+    std::string module_str = "(module\n";
+    for (auto i = 0; i < names.size(); i++) {
+        module_str += func_bodies[i];
+        module_str += "\n";
+    }
+    module_str += ")";
+
+    if (!_readTextData(module_str, *(this->mallocator_))) {
+        std::cerr << "Instrumenter: addFunctions() read text error!" << std::endl;
+        return;
+    }
+
+    // do stack ir pass on the module
+    auto pass_runner = new wasm::PassRunner(this->mallocator_);
+    pass_runner->add("generate-stack-ir");
+    pass_runner->add("optimize-stack-ir");
+    pass_runner->run();
+    delete pass_runner;
+    
+    for (auto i = 0; i < names.size(); i++) {
+        auto cur = this->mallocator_->getFunctionOrNull(names[i]);
+        if (cur == nullptr) {
+            std::cerr << "Instrumenter: add function: "<< i << " name does not match its body" << std::endl;
+            continue;
+        }
+        this->module_->addFunction(cur);
+    }
+}
+
+void Instrumenter::addImportFunction(const char* internal_name,
+                                    const char* external_module_name,
+                                    const char* external_base_name,
+                                    BinaryenType params,
+                                    BinaryenType results) noexcept
+{
+    if (this->state_ != InstrumentState::valid) {
+        std::cerr << "Instrumenter: wrong state for addImportFunction()!" << std::endl;
+        return;
+    }
+    BinaryenAddFunctionImport(this->module_, internal_name, external_module_name, external_base_name, params, results);
+}
+
+void Instrumenter::addImportGlobal(const char* internal_name,
+                                const char* external_module_name,
+                                const char* external_base_name,
+                                BinaryenType type,
+                                bool if_mutable) noexcept
+{
+    if (this->state_ != InstrumentState::valid) {
+        std::cerr << "Instrumenter: wrong state for addImportGlobal()!" << std::endl;
+        return;
+    }
+    BinaryenAddGlobalImport(this->module_, internal_name, external_module_name, external_base_name, type, if_mutable);
+}
+
+void Instrumenter::addImportMemory(const char* internal_name,
+                                const char* external_module_name,
+                                const char* external_base_name,
+                                bool if_shared) noexcept
+{
+    if (this->state_ != InstrumentState::valid) {
+        std::cerr << "Instrumenter: wrong state for addImportGlobal()!" << std::endl;
+        return;
+    }
+    BinaryenAddMemoryImport(this->module_, internal_name, external_module_name, external_base_name, if_shared);
+}
+
+wasm::Export* Instrumenter::addExport(const char* internal_name,
+                                    const char* external_name) noexcept
+{
+    if (this->state_ != InstrumentState::valid) {
+        std::cerr << "Instrumenter: wrong state for addExport()!" << std::endl;
+        return nullptr;
+    }
+    return BinaryenAddFunctionExport(this->module_, internal_name, external_name);
+}
+
+InstrumentResult Instrumenter::instrumentFunction(wasm::Function* func, 
+                                                int line_num, 
+                                                std::vector<std::string>& added) noexcept
+{
+    std::printf("## 0 ##\n");
+    auto func_size = func->stackIR.get()->size();
+    if (line_num < 0 || line_num > func_size) {
+        std::cerr << "Instrumenter: invalid line num!" << std::endl;
+        return InstrumentResult::instrument_error;
+    }
+    std::printf("## 1 ##\n");
+    std::string module_str = "(module\n(func $temp\n";
+    for (const auto& instr_str : added) {
+        module_str += instr_str;
+        module_str += "\n";
+    }
+    module_str += "unreachable)\n)";
+    std::printf("## 2 ##\n");
+    BinaryenModulePrint(this->mallocator_);
+    if (!_readTextData(module_str, *(this->mallocator_))) {
+        std::cerr << "Instrumenter: instrumentFunction() read text error!" << std::endl;
+        return InstrumentResult::instrument_error;
+    }
+    std::printf("## 3 ##\n");
+    BinaryenModulePrint(this->mallocator_);
+    // do stack ir pass on the module
+    auto pass_runner = new wasm::PassRunner(this->mallocator_);
+    pass_runner->add("generate-stack-ir");
+    pass_runner->add("optimize-stack-ir");
+    pass_runner->runOnFunction(this->mallocator_->getFunctionOrNull("temp"));
+    delete pass_runner;
+    std::printf("## 4 ##\n");
+    auto temp_func = this->mallocator_->getFunctionOrNull("temp");
+    assert(temp_func != nullptr);
+    std::printf("## 5 ##\n");
+    std::list<wasm::StackInst*> stack_ir_list = _stack_ir_vec2list(*(func->stackIR.get()));
+    std::list<wasm::StackInst*> temp_ir_list = _stack_ir_vec2list(*(temp_func->stackIR.get()));
+    temp_ir_list.pop_back();
+    std::printf("## 6 ##\n");
+    auto i = stack_ir_list.begin();
+    std::advance(i, line_num);
+    std::printf("insert at exp: %d\n", (*i)->origin->_id);
+    for (auto i : stack_ir_list) {
+        std::printf("add at exp: %d\n", i->origin->_id);
+    }
+    stack_ir_list.splice(i, temp_ir_list);
+    std::printf("## 7 ##\n");
+    for (auto i : stack_ir_list) {
+        std::printf("add at exp: %s\n", wasm::getExpressionName(i->origin));
+    }
+    // write back the modified stack ir list to the func
+    auto new_stack_ir_vec = _stack_ir_list2vec(stack_ir_list);
+    func->stackIR = std::make_unique<wasm::StackIR>(new_stack_ir_vec);
+    
+    return InstrumentResult::success;
+}
+
 }

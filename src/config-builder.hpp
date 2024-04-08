@@ -21,6 +21,8 @@ private:
 
 };
 
+bool _readTextData(const std::string& input, wasm::Module& wasm);
+
 }
 
 #endif

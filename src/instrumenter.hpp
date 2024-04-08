@@ -103,17 +103,43 @@ public:
         this->mallocator_ = BinaryenModuleCreate();
     }
 
-    InstrumentResult instrumentFunction() noexcept;
-    wasm::Global* addGlobal() noexcept;
-    wasm::Function* addFunction() noexcept;
-    void addImportFunction() noexcept;
-    void addImportGlobal() noexcept;
-    void addImportMemory() noexcept;
-    InstrumentResult addExport() noexcept;
+    // add added instructions after line of line_num
+    // line num start from 1, so pass 0 means add instructions before all
+    // !!! not available, don't use
+    InstrumentResult instrumentFunction(wasm::Function* func, 
+                                        int line_num, 
+                                        std::vector<std::string>& added) noexcept;
+    // below: return nullptr denotes add or get failed
+    wasm::Global* addGlobal(const char* name, 
+                            BinaryenType type, 
+                            bool if_mutable, 
+                            BinaryenLiteral value) noexcept;
+    // add functions at one time
+    // cannot be called twice!
+    void addFunctions(std::vector<std::string> &names,
+                                std::vector<std::string> &func_bodies) noexcept;
+    // below: if internal_name already exists, just turn the element to import by set external name
+    void addImportFunction(const char* internal_name,
+                            const char* external_module_name,
+                            const char* external_base_name,
+                            BinaryenType params,
+                            BinaryenType results) noexcept;
+    void addImportGlobal(const char* internal_name,
+                        const char* external_module_name,
+                        const char* external_base_name,
+                        BinaryenType type,
+                        bool if_mutable) noexcept;
+    void addImportMemory(const char* internal_name,
+                        const char* external_module_name,
+                        const char* external_base_name,
+                        bool if_shared) noexcept;
+    wasm::Export* addExport(const char* internal_name,
+                            const char* external_name) noexcept;
 
-    wasm::Global* getGlobal();
-    wasm::Function* getFunction();
-    wasm::Export* getExport();
+    wasm::Global* getGlobal(const char* name) noexcept;
+    wasm::Function* getFunction(const char* name) noexcept;
+    wasm::Export* getExport(const char* external_name) noexcept;
+    wasm::Function* getStartFunction() noexcept;
     
 private:
     InstrumentConfig config_;
