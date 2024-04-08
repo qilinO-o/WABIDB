@@ -70,9 +70,9 @@ General instrumentation can be done by `setConfig()` for an `Instrumenter`, then
 Global* addGlobal(const char* name, 
                   BinaryenType type, 
                   bool if_mutable, 
-                  BinaryenLiteral value)
+                  BinaryenLiteral value);
 void addFunctions(vector<string> &names,
-                  vector<string> &func_bodies)
+                  vector<string> &func_bodies);
 ```
 
 ### Add Import
@@ -81,23 +81,23 @@ Mostly similar to API of `Binaryen`:
 void addImportFunction(const char* internal_name,
                        const char* external_module_name,
                        const char* external_base_name,
-                       ...[specific attributes])
-void addImportGlobal(...)
-void addImportMemory(...)
+                       ...[specific attributes]);
+void addImportGlobal(...);
+void addImportMemory(...);
 ```
 
 ### Add Export
 ```cpp
 Export* addExport(const char* internal_name, 
-                  const char* external_name)
+                  const char* external_name);
 ```
 
 ### Find Operations
 ```cpp
-Global*   getGlobal(const char* name)
-Function* getFunction(const char* name)
-Export*   getExport(const char* external_name)
-Function* getStartFunction()
+Global*   getGlobal(const char* name);
+Function* getFunction(const char* name);
+Export*   getExport(const char* external_name);
+Function* getStartFunction();
 ```
 
 ## Calling Sequence
