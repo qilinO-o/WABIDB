@@ -97,7 +97,13 @@ Export* addExport(const char* internal_name,
 Global*   getGlobal(const char* name);
 Function* getFunction(const char* name);
 Export*   getExport(const char* external_name);
+Importable* getImport(ModuleItemKind kind, const char* base_name);
 Function* getStartFunction();
+```
+
+### Print
+```cpp
+void print();
 ```
 
 ## Calling Sequence
