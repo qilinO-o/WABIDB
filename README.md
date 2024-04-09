@@ -88,7 +88,8 @@ void addImportMemory(...);
 
 ### Add Export
 ```cpp
-Export* addExport(const char* internal_name, 
+Export* addExport(ModuleItemKind kind, 
+                  const char* internal_name, 
                   const char* external_name);
 ```
 
