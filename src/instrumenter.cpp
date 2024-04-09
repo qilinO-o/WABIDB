@@ -5,6 +5,7 @@
 #include <list>
 #include <wasm-io.h>
 #include <ir/module-utils.h>
+#include <support/colors.h>
 
 namespace wasm_instrument{
 std::string InstrumentResult2str(InstrumentResult result) {
@@ -22,7 +23,9 @@ std::string InstrumentResult2str(InstrumentResult result) {
 
 InstrumentResult Instrumenter::_read_file() noexcept {
     // wasm MVP feature
-    this->module_->features.enable(wasm::FeatureSet::MVP);
+    const auto FEATURE_USED = wasm::FeatureSet::MVP;
+    this->module_->features.enable(FEATURE_USED);
+    this->mallocator_->features.enable(FEATURE_USED);
 
     wasm::ModuleReader reader;
     try {
@@ -42,7 +45,7 @@ InstrumentResult Instrumenter::_read_file() noexcept {
 InstrumentResult Instrumenter::_write_file() noexcept {
     wasm::ModuleWriter writer;
     try {
-        writer.write(*(this->module_), this->config_.targetname);
+        writer.write(*(this->mallocator_), this->config_.targetname);
     } catch(wasm::ParseException &p) {
         p.dump(std::cerr);
         std::cerr << '\n';
@@ -153,22 +156,30 @@ InstrumentResult Instrumenter::setConfig(InstrumentConfig &config) noexcept {
     if (this->config_.filename.empty() || this->config_.targetname.empty()) {
         return InstrumentResult::config_error;
     }
-    ConfigBuilder builder;
-    this->added_instructions_ = builder.makeConfig(*(this->mallocator_), this->config_);
-    if (!this->added_instructions_) {
-        return InstrumentResult::config_error;
-    }
+
     // read file to the instrumenter
     InstrumentResult state_result = _read_file();
     if (state_result != InstrumentResult::success) {
         return state_result;
     }
-    // do stack ir pass on the module
-    auto pass_runner = new wasm::PassRunner(this->module_);
-    pass_runner->add("generate-stack-ir");
-    pass_runner->add("optimize-stack-ir");
-    pass_runner->run();
-    delete pass_runner;
+
+    // transfer dependencies to mallocator
+    std::stringstream mstream;
+    auto is_color = Colors::isEnabled();
+    Colors::setEnabled(false);
+    // also do stack ir pass on the module
+    wasm::printStackIR(mstream, (wasm::Module*)(this->module_), true);
+    if (!_readTextData(mstream.str(), *(this->mallocator_))) {
+        std::cerr << "Instrumenter: setConfig() read text error!" << std::endl;
+        Colors::setEnabled(is_color);
+        return InstrumentResult::config_error;
+    }
+    Colors::setEnabled(is_color);
+    // do stack ir pass on mallocator
+    wasm::PassRunner runner(this->mallocator_);
+    runner.add("generate-stack-ir");
+    runner.add("optimize-stack-ir");
+    runner.run();
 
     this->state_ = InstrumentState::valid;
     return InstrumentResult::success;
@@ -178,6 +189,12 @@ InstrumentResult Instrumenter::instrument() noexcept {
     if (this->state_ != InstrumentState::valid) {
         std::cerr << "Instrumenter: wrong state for instrument()!" << std::endl;
         return InstrumentResult::invalid_state;
+    }
+
+    ConfigBuilder builder;
+    this->added_instructions_ = builder.makeConfig(*(this->mallocator_), this->config_);
+    if (!this->added_instructions_) {
+        return InstrumentResult::config_error;
     }
 
     // do specific instrument operations in config
@@ -276,6 +293,41 @@ wasm::Function* Instrumenter::getStartFunction() noexcept {
     return this->module_->getFunctionOrNull(t->value);
 }
 
+wasm::Importable* Instrumenter::getImport(wasm::ModuleItemKind kind, const char* base_name) noexcept {
+    switch (kind) {
+        case wasm::ModuleItemKind::Function:
+            for (const auto& f : this->module_->functions) {
+                if (f.get()->imported() && f.get()->base == base_name) {
+                    return f.get();
+                }
+            }
+        case wasm::ModuleItemKind::Table:
+            for (const auto& f : this->module_->tables) {
+                if (f.get()->imported() && f.get()->base == base_name) {
+                    return f.get();
+                }
+            }
+        case wasm::ModuleItemKind::Memory:
+            for (const auto& f : this->module_->memories) {
+                if (f.get()->imported() && f.get()->base == base_name) {
+                    return f.get();
+                }
+            }
+        case wasm::ModuleItemKind::Global:
+            for (const auto& f : this->module_->globals) {
+                if (f.get()->imported() && f.get()->base == base_name) {
+                    return f.get();
+                }
+            }
+        case wasm::ModuleItemKind::Tag:
+        case wasm::ModuleItemKind::DataSegment:
+        case wasm::ModuleItemKind::ElementSegment:
+        case wasm::ModuleItemKind::Invalid:
+        default:
+            return nullptr;
+    }
+}
+
 wasm::Global* Instrumenter::addGlobal(const char* name, 
                             BinaryenType type, 
                             bool if_mutable, 
@@ -292,6 +344,7 @@ wasm::Global* Instrumenter::addGlobal(const char* name,
     }
     auto init = BinaryenConst(this->mallocator_, value);
     ret = BinaryenAddGlobal(this->module_, name, type, if_mutable, init);
+    // maintain dependency in mallocator
     BinaryenAddGlobal(this->mallocator_, name, type, if_mutable, init);
     return ret;
 }
@@ -309,24 +362,37 @@ void Instrumenter::addFunctions(std::vector<std::string> &names, std::vector<std
             return;
         }
     }
-    std::string module_str = "(module\n";
+
+    std::stringstream mstream;
+    auto is_color = Colors::isEnabled();
+    Colors::setEnabled(false);
+    // also do stack ir pass on the module
+    wasm::printStackIR(mstream, (wasm::Module*)(this->module_), true);
+    std::string module_str = mstream.str();
+    while (module_str.back() != ')') 
+        module_str.pop_back();
+    assert(module_str.back() == ')');
+    module_str.pop_back();
     for (auto i = 0; i < names.size(); i++) {
         module_str += func_bodies[i];
         module_str += "\n";
     }
     module_str += ")";
-
+    BinaryenModuleDispose(this->mallocator_);
+    this->mallocator_ = BinaryenModuleCreate();
+    this->mallocator_->features.set(this->module_->features);
     if (!_readTextData(module_str, *(this->mallocator_))) {
         std::cerr << "Instrumenter: addFunctions() read text error!" << std::endl;
+        Colors::setEnabled(is_color);
         return;
     }
+    Colors::setEnabled(is_color);
 
     // do stack ir pass on the module
-    auto pass_runner = new wasm::PassRunner(this->mallocator_);
-    pass_runner->add("generate-stack-ir");
-    pass_runner->add("optimize-stack-ir");
-    pass_runner->run();
-    delete pass_runner;
+    wasm::PassRunner pass_runner(this->mallocator_);
+    pass_runner.add("generate-stack-ir");
+    pass_runner.add("optimize-stack-ir");
+    pass_runner.run();
     
     for (auto i = 0; i < names.size(); i++) {
         auto cur = this->mallocator_->getFunctionOrNull(names[i]);
@@ -349,6 +415,8 @@ void Instrumenter::addImportFunction(const char* internal_name,
         return;
     }
     BinaryenAddFunctionImport(this->module_, internal_name, external_module_name, external_base_name, params, results);
+    // maintain dependency in mallocator
+    BinaryenAddFunctionImport(this->mallocator_, internal_name, external_module_name, external_base_name, params, results);
 }
 
 void Instrumenter::addImportGlobal(const char* internal_name,
@@ -362,6 +430,8 @@ void Instrumenter::addImportGlobal(const char* internal_name,
         return;
     }
     BinaryenAddGlobalImport(this->module_, internal_name, external_module_name, external_base_name, type, if_mutable);
+    // maintain dependency in mallocator
+    BinaryenAddGlobalImport(this->mallocator_, internal_name, external_module_name, external_base_name, type, if_mutable);
 }
 
 void Instrumenter::addImportMemory(const char* internal_name,
@@ -374,16 +444,37 @@ void Instrumenter::addImportMemory(const char* internal_name,
         return;
     }
     BinaryenAddMemoryImport(this->module_, internal_name, external_module_name, external_base_name, if_shared);
+    // maintain dependency in mallocator
+    BinaryenAddMemoryImport(this->mallocator_, internal_name, external_module_name, external_base_name, if_shared);
 }
 
-wasm::Export* Instrumenter::addExport(const char* internal_name,
+wasm::Export* Instrumenter::addExport(wasm::ModuleItemKind kind, const char* internal_name,
                                     const char* external_name) noexcept
 {
     if (this->state_ != InstrumentState::valid) {
         std::cerr << "Instrumenter: wrong state for addExport()!" << std::endl;
         return nullptr;
     }
-    return BinaryenAddFunctionExport(this->module_, internal_name, external_name);
+    wasm::Export* ret = nullptr;
+    switch (kind) {
+        case wasm::ModuleItemKind::Function:
+            ret = BinaryenAddFunctionExport(this->module_, internal_name, external_name);
+            // maintain dependency in mallocator
+            BinaryenAddFunctionExport(this->mallocator_, internal_name, external_name);
+            return ret;
+        case wasm::ModuleItemKind::Global:
+            ret = BinaryenAddGlobalExport(this->module_, internal_name, external_name);
+            // maintain dependency in mallocator
+            BinaryenAddGlobalExport(this->mallocator_, internal_name, external_name);
+            return ret;
+        case wasm::ModuleItemKind::Memory:
+            ret = BinaryenAddMemoryExport(this->module_, internal_name, external_name);
+            // maintain dependency in mallocator
+            BinaryenAddMemoryExport(this->mallocator_, internal_name, external_name);
+            return ret;
+        default:
+            return nullptr;
+    }
 }
 
 InstrumentResult Instrumenter::instrumentFunction(wasm::Function* func, 

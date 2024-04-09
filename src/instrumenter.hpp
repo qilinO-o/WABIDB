@@ -129,17 +129,25 @@ public:
                         const char* external_base_name,
                         BinaryenType type,
                         bool if_mutable) noexcept;
+    // MVP may not support!
     void addImportMemory(const char* internal_name,
                         const char* external_module_name,
                         const char* external_base_name,
                         bool if_shared) noexcept;
-    wasm::Export* addExport(const char* internal_name,
+    wasm::Export* addExport(wasm::ModuleItemKind kind, const char* internal_name,
                             const char* external_name) noexcept;
 
     wasm::Global* getGlobal(const char* name) noexcept;
     wasm::Function* getFunction(const char* name) noexcept;
     wasm::Export* getExport(const char* external_name) noexcept;
+    // use base name for better WASI support
+    wasm::Importable* getImport(wasm::ModuleItemKind kind, const char* base_name) noexcept;
     wasm::Function* getStartFunction() noexcept;
+
+    // print module
+    void print() {
+        BinaryenModulePrint(this->module_);
+    }
     
 private:
     InstrumentConfig config_;
@@ -153,6 +161,9 @@ private:
 
     InstrumentResult _read_file() noexcept;
     InstrumentResult _write_file() noexcept;
+    void printAllocator() {
+        BinaryenModulePrint(this->mallocator_);
+    }
 };
 
 } // namespace wasm_instrument
