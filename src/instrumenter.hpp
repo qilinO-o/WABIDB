@@ -136,15 +136,19 @@ public:
     wasm::Function* getStartFunction() noexcept;
 
     // print module
-    void print() {
-        BinaryenModulePrint(this->module_);
+    void print(bool if_stack_ir = false) {
+        if (!if_stack_ir) {
+            BinaryenModulePrint(this->module_);
+        } else {
+            BinaryenModulePrintStackIR(this->module_, false);
+        }
     }
     
 private:
     InstrumentConfig config_;
     wasm::Module* module_;
     InstrumentState state_ = InstrumentState::idle;
-    AddedInstructions* added_instructions_; 
+    AddedInstructions* added_instructions_;
 
     InstrumentResult _read_file() noexcept;
     InstrumentResult _write_file() noexcept;

@@ -104,7 +104,7 @@ Function* getStartFunction();
 
 ### Print
 ```cpp
-void print();
+void print(bool if_stack_ir = false);
 ```
 
 ## Calling Sequence
