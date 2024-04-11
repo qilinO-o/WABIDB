@@ -25,7 +25,6 @@ InstrumentResult Instrumenter::_read_file() noexcept {
     // wasm MVP feature
     const auto FEATURE_USED = wasm::FeatureSet::MVP;
     this->module_->features.enable(FEATURE_USED);
-    this->mallocator_->features.enable(FEATURE_USED);
 
     wasm::ModuleReader reader;
     try {
@@ -45,7 +44,7 @@ InstrumentResult Instrumenter::_read_file() noexcept {
 InstrumentResult Instrumenter::_write_file() noexcept {
     wasm::ModuleWriter writer;
     try {
-        writer.write(*(this->mallocator_), this->config_.targetname);
+        writer.write(*(this->module_), this->config_.targetname);
     } catch(wasm::ParseException &p) {
         p.dump(std::cerr);
         std::cerr << '\n';
@@ -163,20 +162,8 @@ InstrumentResult Instrumenter::setConfig(InstrumentConfig &config) noexcept {
         return state_result;
     }
 
-    // transfer dependencies to mallocator
-    std::stringstream mstream;
-    auto is_color = Colors::isEnabled();
-    Colors::setEnabled(false);
-    // also do stack ir pass on the module
-    wasm::printStackIR(mstream, (wasm::Module*)(this->module_), true);
-    if (!_readTextData(mstream.str(), *(this->mallocator_))) {
-        std::cerr << "Instrumenter: setConfig() read text error!" << std::endl;
-        Colors::setEnabled(is_color);
-        return InstrumentResult::config_error;
-    }
-    Colors::setEnabled(is_color);
     // do stack ir pass on mallocator
-    wasm::PassRunner runner(this->mallocator_);
+    wasm::PassRunner runner(this->module_);
     runner.add("generate-stack-ir");
     runner.add("optimize-stack-ir");
     runner.run();
@@ -192,7 +179,7 @@ InstrumentResult Instrumenter::instrument() noexcept {
     }
 
     ConfigBuilder builder;
-    this->added_instructions_ = builder.makeConfig(*(this->mallocator_), this->config_);
+    this->added_instructions_ = builder.makeConfig(this->module_, this->config_);
     if (!this->added_instructions_) {
         return InstrumentResult::config_error;
     }
@@ -213,7 +200,7 @@ InstrumentResult Instrumenter::instrument() noexcept {
         for (auto i = stack_ir_list.begin(); i != stack_ir_list.end(); i++) {
             auto cur_stack_inst = *i;
             auto cur_exp = cur_stack_inst->origin;
-            std::printf("iter at exp: %s\n", wasm::getExpressionName(cur_exp));
+            // std::printf("iter at exp: %s\n", wasm::getExpressionName(cur_exp));
 
             // perform each operation on the current expression
             // targets of all operations should be *Orthogonal* !
@@ -342,10 +329,8 @@ wasm::Global* Instrumenter::addGlobal(const char* name,
         std::cerr << "Instrumenter: global name: "<< name << " already exists!" << std::endl;
         return nullptr;
     }
-    auto init = BinaryenConst(this->mallocator_, value);
+    auto init = BinaryenConst(this->module_, value);
     ret = BinaryenAddGlobal(this->module_, name, type, if_mutable, init);
-    // maintain dependency in mallocator
-    BinaryenAddGlobal(this->mallocator_, name, type, if_mutable, init);
     return ret;
 }
 
@@ -367,8 +352,9 @@ void Instrumenter::addFunctions(std::vector<std::string> &names, std::vector<std
     auto is_color = Colors::isEnabled();
     Colors::setEnabled(false);
     // also do stack ir pass on the module
-    wasm::printStackIR(mstream, (wasm::Module*)(this->module_), true);
+    wasm::printStackIR(mstream, this->module_, true);
     std::string module_str = mstream.str();
+    std::string backup_str = module_str;
     while (module_str.back() != ')') 
         module_str.pop_back();
     assert(module_str.back() == ')');
@@ -378,30 +364,27 @@ void Instrumenter::addFunctions(std::vector<std::string> &names, std::vector<std
         module_str += "\n";
     }
     module_str += ")";
-    BinaryenModuleDispose(this->mallocator_);
-    this->mallocator_ = BinaryenModuleCreate();
-    this->mallocator_->features.set(this->module_->features);
-    if (!_readTextData(module_str, *(this->mallocator_))) {
+    auto feature = this->module_->features;
+    BinaryenModuleDispose(this->module_);
+    this->module_ = BinaryenModuleCreate();
+    this->module_->features.set(feature);
+    if (!_readTextData(module_str, *(this->module_))) {
         std::cerr << "Instrumenter: addFunctions() read text error!" << std::endl;
         Colors::setEnabled(is_color);
+        BinaryenModuleDispose(this->module_);
+        this->module_ = BinaryenModuleCreate();
+        if (!_readTextData(backup_str, *(this->module_))) {
+            std::cerr << "Instrumenter: addFunctions() cannot recover module! Further operations should end!" << std::endl;
+        }
         return;
     }
     Colors::setEnabled(is_color);
 
     // do stack ir pass on the module
-    wasm::PassRunner pass_runner(this->mallocator_);
+    wasm::PassRunner pass_runner(this->module_);
     pass_runner.add("generate-stack-ir");
     pass_runner.add("optimize-stack-ir");
     pass_runner.run();
-    
-    for (auto i = 0; i < names.size(); i++) {
-        auto cur = this->mallocator_->getFunctionOrNull(names[i]);
-        if (cur == nullptr) {
-            std::cerr << "Instrumenter: add function: "<< i << " name does not match its body" << std::endl;
-            continue;
-        }
-        this->module_->addFunction(cur);
-    }
 }
 
 void Instrumenter::addImportFunction(const char* internal_name,
@@ -415,8 +398,6 @@ void Instrumenter::addImportFunction(const char* internal_name,
         return;
     }
     BinaryenAddFunctionImport(this->module_, internal_name, external_module_name, external_base_name, params, results);
-    // maintain dependency in mallocator
-    BinaryenAddFunctionImport(this->mallocator_, internal_name, external_module_name, external_base_name, params, results);
 }
 
 void Instrumenter::addImportGlobal(const char* internal_name,
@@ -430,8 +411,6 @@ void Instrumenter::addImportGlobal(const char* internal_name,
         return;
     }
     BinaryenAddGlobalImport(this->module_, internal_name, external_module_name, external_base_name, type, if_mutable);
-    // maintain dependency in mallocator
-    BinaryenAddGlobalImport(this->mallocator_, internal_name, external_module_name, external_base_name, type, if_mutable);
 }
 
 void Instrumenter::addImportMemory(const char* internal_name,
@@ -444,8 +423,6 @@ void Instrumenter::addImportMemory(const char* internal_name,
         return;
     }
     BinaryenAddMemoryImport(this->module_, internal_name, external_module_name, external_base_name, if_shared);
-    // maintain dependency in mallocator
-    BinaryenAddMemoryImport(this->mallocator_, internal_name, external_module_name, external_base_name, if_shared);
 }
 
 wasm::Export* Instrumenter::addExport(wasm::ModuleItemKind kind, const char* internal_name,
@@ -459,79 +436,16 @@ wasm::Export* Instrumenter::addExport(wasm::ModuleItemKind kind, const char* int
     switch (kind) {
         case wasm::ModuleItemKind::Function:
             ret = BinaryenAddFunctionExport(this->module_, internal_name, external_name);
-            // maintain dependency in mallocator
-            BinaryenAddFunctionExport(this->mallocator_, internal_name, external_name);
             return ret;
         case wasm::ModuleItemKind::Global:
             ret = BinaryenAddGlobalExport(this->module_, internal_name, external_name);
-            // maintain dependency in mallocator
-            BinaryenAddGlobalExport(this->mallocator_, internal_name, external_name);
             return ret;
         case wasm::ModuleItemKind::Memory:
             ret = BinaryenAddMemoryExport(this->module_, internal_name, external_name);
-            // maintain dependency in mallocator
-            BinaryenAddMemoryExport(this->mallocator_, internal_name, external_name);
             return ret;
         default:
             return nullptr;
     }
-}
-
-InstrumentResult Instrumenter::instrumentFunction(wasm::Function* func, 
-                                                int line_num, 
-                                                std::vector<std::string>& added) noexcept
-{
-    std::printf("## 0 ##\n");
-    auto func_size = func->stackIR.get()->size();
-    if (line_num < 0 || line_num > func_size) {
-        std::cerr << "Instrumenter: invalid line num!" << std::endl;
-        return InstrumentResult::instrument_error;
-    }
-    std::printf("## 1 ##\n");
-    std::string module_str = "(module\n(func $temp\n";
-    for (const auto& instr_str : added) {
-        module_str += instr_str;
-        module_str += "\n";
-    }
-    module_str += "unreachable)\n)";
-    std::printf("## 2 ##\n");
-    BinaryenModulePrint(this->mallocator_);
-    if (!_readTextData(module_str, *(this->mallocator_))) {
-        std::cerr << "Instrumenter: instrumentFunction() read text error!" << std::endl;
-        return InstrumentResult::instrument_error;
-    }
-    std::printf("## 3 ##\n");
-    BinaryenModulePrint(this->mallocator_);
-    // do stack ir pass on the module
-    auto pass_runner = new wasm::PassRunner(this->mallocator_);
-    pass_runner->add("generate-stack-ir");
-    pass_runner->add("optimize-stack-ir");
-    pass_runner->runOnFunction(this->mallocator_->getFunctionOrNull("temp"));
-    delete pass_runner;
-    std::printf("## 4 ##\n");
-    auto temp_func = this->mallocator_->getFunctionOrNull("temp");
-    assert(temp_func != nullptr);
-    std::printf("## 5 ##\n");
-    std::list<wasm::StackInst*> stack_ir_list = _stack_ir_vec2list(*(func->stackIR.get()));
-    std::list<wasm::StackInst*> temp_ir_list = _stack_ir_vec2list(*(temp_func->stackIR.get()));
-    temp_ir_list.pop_back();
-    std::printf("## 6 ##\n");
-    auto i = stack_ir_list.begin();
-    std::advance(i, line_num);
-    std::printf("insert at exp: %d\n", (*i)->origin->_id);
-    for (auto i : stack_ir_list) {
-        std::printf("add at exp: %d\n", i->origin->_id);
-    }
-    stack_ir_list.splice(i, temp_ir_list);
-    std::printf("## 7 ##\n");
-    for (auto i : stack_ir_list) {
-        std::printf("add at exp: %s\n", wasm::getExpressionName(i->origin));
-    }
-    // write back the modified stack ir list to the func
-    auto new_stack_ir_vec = _stack_ir_list2vec(stack_ir_list);
-    func->stackIR = std::make_unique<wasm::StackIR>(new_stack_ir_vec);
-    
-    return InstrumentResult::success;
 }
 
 }

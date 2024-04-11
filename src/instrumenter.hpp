@@ -74,14 +74,13 @@ class Instrumenter final {
 public:
     Instrumenter() noexcept {
         this->module_ = BinaryenModuleCreate();
-        this->mallocator_ = BinaryenModuleCreate();
     }
     Instrumenter(const Instrumenter &a) = delete;
     Instrumenter(Instrumenter &&a) = delete;
     Instrumenter &operator=(const Instrumenter &) = delete;
     Instrumenter &operator=(Instrumenter &&) = delete;
     ~Instrumenter() noexcept {
-        BinaryenModuleDispose(this->mallocator_);
+        BinaryenModuleDispose(this->module_);
     }
 
     // set config, read module and make stack ir emitted
@@ -97,18 +96,10 @@ public:
     void clear() {
         this->state_ = InstrumentState::idle;
         BinaryenModuleDispose(this->module_);
-        BinaryenModuleDispose(this->mallocator_);
         delete this->added_instructions_;
         this->module_ = BinaryenModuleCreate();
-        this->mallocator_ = BinaryenModuleCreate();
     }
 
-    // add added instructions after line of line_num
-    // line num start from 1, so pass 0 means add instructions before all
-    // !!! not available, don't use
-    InstrumentResult instrumentFunction(wasm::Function* func, 
-                                        int line_num, 
-                                        std::vector<std::string>& added) noexcept;
     // below: return nullptr denotes add or get failed
     wasm::Global* addGlobal(const char* name, 
                             BinaryenType type, 
@@ -153,17 +144,10 @@ private:
     InstrumentConfig config_;
     wasm::Module* module_;
     InstrumentState state_ = InstrumentState::idle;
-
-    // allocator for newly created wasm classes(e.g.expressions, new globals, imports etc.)
-    // so it must be created at first and deleted at last
-    wasm::Module* mallocator_;
     AddedInstructions* added_instructions_; 
 
     InstrumentResult _read_file() noexcept;
     InstrumentResult _write_file() noexcept;
-    void printAllocator() {
-        BinaryenModulePrint(this->mallocator_);
-    }
 };
 
 } // namespace wasm_instrument

@@ -8,7 +8,7 @@ int main(int argc, char **argv) {
 
     InstrumentConfig config;
     config.filename = "../playground/fd_write.wasm";
-    config.targetname = "../playground/instr_result/7.wasm";
+    config.targetname = "../playground/instr_result/8.wasm";
     // example: insert an i32.const(2333) and a drop before and after every call
     InstrumentOperation op1;
     op1.targets.push_back(InstrumentOperation::ExpName{
@@ -42,10 +42,10 @@ int main(int argc, char **argv) {
     assert(instrumenter.getImport(wasm::ModuleItemKind::Function, "fd_write") != nullptr);
     std::printf("## 5 ##\n");
     std::vector<std::string> names = {"donothing", "donothing2"};
-    std::vector<std::string> func_bodies = {"(func $donothing (param i32) (result i32)\n"
-                                                "local.get 0\ni32.const 100000\ni32.add)",
-                                            "(func $donothing2 (param i32) (result i32)\n"
-                                                "local.get 0\nglobal.get $g\ni32.wrap_i64\ni32.add)"};
+    std::vector<std::string> func_bodies = {" (func $donothing (param i32) (result i32)\n"
+                                                "  local.get 0\n  i32.const 100000\n  i32.add\n )",
+                                            " (func $donothing2 (param i32) (result i32)\n"
+                                                "  local.get 0\n  global.get $g\n  i32.wrap_i64\n  i32.add\n )"};
     instrumenter.addFunctions(names, func_bodies);
     for (auto name: names) {
         assert(instrumenter.getFunction(name.c_str()) != nullptr);

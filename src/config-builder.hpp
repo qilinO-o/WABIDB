@@ -16,7 +16,7 @@ public:
     ConfigBuilder &operator=(ConfigBuilder &&) = delete;
     ~ConfigBuilder() noexcept = default;
 
-    AddedInstructions* makeConfig(wasm::Module &mallocator, const InstrumentConfig &config) noexcept;
+    AddedInstructions* makeConfig(wasm::Module* &mallocator, const InstrumentConfig &config) noexcept;
 private:
 
 };
