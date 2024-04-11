@@ -153,12 +153,14 @@ InstrumentResult Instrumenter::setConfig(InstrumentConfig &config) noexcept {
     this->config_.targetname = config.targetname;
     this->config_.operations.assign(config.operations.begin(), config.operations.end());
     if (this->config_.filename.empty() || this->config_.targetname.empty()) {
+        std::cerr << "Instrumenter: setConfig() empty file name!" << std::endl;
         return InstrumentResult::config_error;
     }
 
     // read file to the instrumenter
     InstrumentResult state_result = _read_file();
     if (state_result != InstrumentResult::success) {
+        std::cerr << "Instrumenter: setConfig() error when read file!" << std::endl;
         return state_result;
     }
 
@@ -203,12 +205,10 @@ InstrumentResult Instrumenter::instrument() noexcept {
         // iter through the body in the current function (with Stack IR)
         // transform the vector of stack ir to a list for better modification
         std::list<wasm::StackInst*> stack_ir_list = _stack_ir_vec2list(*(func->stackIR.get()));
-        // _print_stack_ir(stack_ir_list);
         
         for (auto i = stack_ir_list.begin(); i != stack_ir_list.end(); i++) {
             auto cur_stack_inst = *i;
             auto cur_exp = cur_stack_inst->origin;
-            // std::printf("iter at exp: %s\n", wasm::getExpressionName(cur_exp));
 
             // perform each operation on the current expression
             // targets of all operations should be *Orthogonal* !
@@ -235,11 +235,13 @@ InstrumentResult Instrumenter::instrument() noexcept {
     try {
         wasm::ModuleUtils::iterDefinedFunctions(*(this->module_), func_visitor);
     } catch(...) {
+        std::cerr << "Instrumenter: instrument() error while iterating functions!" << std::endl;
         return InstrumentResult::instrument_error;
     }
 
     // validate the module after modification
     if (!BinaryenModuleValidate(this->module_)) {
+        std::cerr << "Instrumenter: instrument() error when validate!" << std::endl;
         return InstrumentResult::validate_error;
     }
     
@@ -249,6 +251,7 @@ InstrumentResult Instrumenter::instrument() noexcept {
 InstrumentResult Instrumenter::writeBinary() noexcept {
     InstrumentResult state_result = _write_file();
     if (state_result != InstrumentResult::success) {
+        std::cerr << "Instrumenter: writeBinary() error when write file!" << std::endl;
         return state_result;
     }
     this->state_ = InstrumentState::written;
