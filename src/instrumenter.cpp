@@ -168,6 +168,13 @@ InstrumentResult Instrumenter::setConfig(InstrumentConfig &config) noexcept {
     runner.add("optimize-stack-ir");
     runner.run();
 
+    // add functions of the original binary to function_scope
+    for (const auto &f : this->module_->functions) {
+        if (!f.get()->imported()) {
+            this->function_scope_.emplace(f.get()->name.toString());
+        }
+    }
+
     this->state_ = InstrumentState::valid;
     return InstrumentResult::success;
 }
@@ -187,6 +194,7 @@ InstrumentResult Instrumenter::instrument() noexcept {
     // do specific instrument operations in config
     // iter through functions in the module
     auto func_visitor = [this](wasm::Function* func){
+        if (!this->scope_contains(func->name.toString())) return;
         std::cout << "in function: " << func->name << " type: " << func->type.toString() << std::endl;
     
         // stack ir check

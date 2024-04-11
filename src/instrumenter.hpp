@@ -143,12 +143,33 @@ public:
             BinaryenModulePrintStackIR(this->module_, false);
         }
     }
+
+    // scope apis
+    bool scope_add(const std::string& name) {
+        return this->function_scope_.emplace(name).second;
+    }
+    bool scope_remove(const std::string& name) {
+        auto i = this->function_scope_.find(name);
+        if (i == this->function_scope_.end()) return false;
+        this->function_scope_.erase(i);
+        return true;
+    }
+    bool scope_contains(const std::string& name) {
+        return static_cast<bool>(this->function_scope_.count(name));
+    }
+    void scope_clear() {
+        this->function_scope_.clear();
+    }
+
     
 private:
     InstrumentConfig config_;
     wasm::Module* module_;
     InstrumentState state_ = InstrumentState::idle;
     AddedInstructions* added_instructions_;
+    // record function names that should be instrumented
+    // default contain all unimport functions from the original binary
+    std::set<std::string> function_scope_;
 
     InstrumentResult _read_file() noexcept;
     InstrumentResult _write_file() noexcept;

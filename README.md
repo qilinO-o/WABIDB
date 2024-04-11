@@ -18,7 +18,7 @@ cmake .. && make
 
 `WABIDB` uses `class Instrumenter` internally, which is also potentially useful for individual usage in other projects. You only need to import `instrumenter.hpp` for basic C++ APIs. It provides a general wasm binary instrumentation tool that is easy to use and powerful as well.
 
-Note that these APIs should be called in a certain sequence described in section [Calling Sequence](#calling-sequence).
+Note that these APIs **MUST** be called in a certain sequence described in section [Calling Sequence](#calling-sequence).
 
 The `routine()` method below covers basic usage of the APIs:
 ```cpp
@@ -107,6 +107,15 @@ Function* getStartFunction();
 void print(bool if_stack_ir = false);
 ```
 
+### Scope
+`instrument()` will be performed on functions in the scope. The scope contains all defined(unimport) functions of the original binary by default. You can modify the scope using following apis.
+```cpp
+bool scope_add(const std::string& name);
+bool scope_remove(const std::string& name);
+bool scope_contains(const std::string& name);
+void scope_clear();
+```
+
 ## Calling Sequence
 When validating the instrumented instructions, we should guarentee that newly defined `global`s, `import`s and `function`s can be found. Thus, a calling sequence should be obeyed as follow:
 | Phase | State       | Call             |
@@ -119,7 +128,7 @@ When validating the instrumented instructions, we should guarentee that newly de
 | 3     | instrument  | `instrument()`   |
 | 4     | write back  | `writeBinary()`  |
 
-All `get[*]()` can be called in phase 2 & 3.
+All `get[*]()` can be called in phase 2 & 3. Scope apis should be called before phase 3.
 
 ## Support Information
 Default support WebAssembly version 1 (MVP), can be easily set for further features. Using `Binaryen` enables `WABIDB` to support most up-to-date proposals.
