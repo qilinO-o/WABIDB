@@ -1,13 +1,27 @@
 #include "instrumenter.hpp"
-#include "config-builder.hpp"
+#include "operation-builder.hpp"
 #include <fstream>
 #include <assert.h>
 #include <list>
 #include <wasm-io.h>
 #include <ir/module-utils.h>
 #include <support/colors.h>
+#include <parser/wat-parser.h>
 
 namespace wasm_instrument{
+
+// binaryen has experimental text parser for wabt output(aka stack style)
+// while it is disabled by flag useNewWATParser = false
+// reimplement it here
+bool _readTextData(const std::string& input, wasm::Module& wasm) {
+    std::string_view in(input.c_str());
+    if (auto parsed = wasm::WATParser::parseModule(wasm, in); auto err = parsed.getErr()) {
+        std::cerr << err->msg << std::endl;
+        return false;
+    }
+    return true;
+}
+
 std::string InstrumentResult2str(InstrumentResult result) {
     std::string result_map[] = {
         "success",
@@ -53,29 +67,12 @@ InstrumentResult Instrumenter::_write_file() noexcept {
     return InstrumentResult::success;
 }
 
-bool _exp_match_targets(wasm::Expression* exp, std::vector<InstrumentOperation::ExpName> &targets) {
-    for (const auto &target : targets) {
-        if (exp->_id == target.id) {
-            if (target.id == wasm::Expression::Id::UnaryId) {
-                wasm::Unary* unary_exp = static_cast<wasm::Unary*>(exp);
-                if (unary_exp->op == target.exp_op.uop) return true;
-            } else if (target.id == wasm::Expression::Id::BinaryId) {
-                wasm::Binary* binary_exp = static_cast<wasm::Binary*>(exp);
-                if (binary_exp->op == target.exp_op.bop) return true;
-            } else { // exp and target instr are of no op instr
-                if (target.exp_op.no_op == -1) return true;
-            }
-        }
-    }
-    return false;
-}
-
 bool _isControlFlowStructure(wasm::Expression::Id id) {
     return (id == wasm::Expression::Id::BlockId) || (id == wasm::Expression::Id::IfId) 
         || (id == wasm::Expression::Id::LoopId);
 }
 
-bool _exp_match_targets(wasm::StackInst* exp, std::vector<InstrumentOperation::ExpName> &targets) {
+bool _exp_match_targets(const wasm::StackInst* exp, const std::vector<InstrumentOperation::ExpName> &targets) {
     for (const auto &target : targets) {
         if (exp->origin->_id == target.id) {
             if (target.exp_op.no_op == -1) return true;
@@ -144,14 +141,13 @@ void _print_stack_ir(const std::list<wasm::StackInst*> stack_ir_list, bool verbo
     }
 }
 
-InstrumentResult Instrumenter::setConfig(InstrumentConfig &config) noexcept {
+InstrumentResult Instrumenter::setConfig(const InstrumentConfig &config) noexcept {
     if (this->state_ != InstrumentState::idle) {
         std::cerr << "Instrumenter: wrong state for setConfig()!" << std::endl;
         return InstrumentResult::invalid_state;
     }
     this->config_.filename = config.filename;
     this->config_.targetname = config.targetname;
-    this->config_.operations.assign(config.operations.begin(), config.operations.end());
     if (this->config_.filename.empty() || this->config_.targetname.empty()) {
         std::cerr << "Instrumenter: setConfig() empty file name!" << std::endl;
         return InstrumentResult::config_error;
@@ -181,21 +177,22 @@ InstrumentResult Instrumenter::setConfig(InstrumentConfig &config) noexcept {
     return InstrumentResult::success;
 }
 
-InstrumentResult Instrumenter::instrument() noexcept {
+InstrumentResult Instrumenter::instrument(const std::vector<InstrumentOperation> &operations) noexcept {
     if (this->state_ != InstrumentState::valid) {
         std::cerr << "Instrumenter: wrong state for instrument()!" << std::endl;
         return InstrumentResult::invalid_state;
     }
 
-    ConfigBuilder builder;
-    this->added_instructions_ = builder.makeConfig(this->module_, this->config_);
+    // parse operations
+    OperationBuilder builder;
+    this->added_instructions_ = builder.makeOperations(this->module_, operations);
     if (!this->added_instructions_) {
-        return InstrumentResult::config_error;
+        return InstrumentResult::instrument_error;
     }
 
     // do specific instrument operations in config
     // iter through functions in the module
-    auto func_visitor = [this](wasm::Function* func){
+    auto func_visitor = [this, &operations](wasm::Function* func){
         if (!this->scope_contains(func->name.toString())) return;
         std::cout << "in function: " << func->name << " type: " << func->type.toString() << std::endl;
     
@@ -213,7 +210,7 @@ InstrumentResult Instrumenter::instrument() noexcept {
             // perform each operation on the current expression
             // targets of all operations should be *Orthogonal* !
             int op_num = 0;
-            for (auto &operation : this->config_.operations) {
+            for (auto &operation : operations) {
                 if (!_exp_match_targets(cur_stack_inst, operation.targets)) {
                     op_num++;
                     continue;

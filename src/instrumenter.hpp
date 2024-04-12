@@ -43,7 +43,6 @@ struct AddedInstructions {
 struct InstrumentConfig final {
     std::string filename;
     std::string targetname;
-    std::vector<InstrumentOperation> operations;
 };
 
 enum InstrumentResult {
@@ -66,8 +65,6 @@ enum InstrumentState {
     written
 };
 
-std::string InstrumentResult2str(InstrumentResult result);
-
 // new Instrumenter with config and run with instrument()
 // also provide other useful utilities including create wasm classes(globals, imports, expressions) etc.
 class Instrumenter final {
@@ -85,10 +82,10 @@ public:
 
     // set config, read module and make stack ir emitted
     // prepare for further instrumentations
-    InstrumentResult setConfig(InstrumentConfig &config) noexcept;
+    InstrumentResult setConfig(const InstrumentConfig &config) noexcept;
     // do the general instrumentations with match-and-insert semantics
     // and validate the modified module
-    InstrumentResult instrument() noexcept;
+    InstrumentResult instrument(const std::vector<InstrumentOperation> &operations) noexcept;
     // write the module to binary file with name config.targetname
     InstrumentResult writeBinary() noexcept;
 
@@ -174,6 +171,9 @@ private:
     InstrumentResult _read_file() noexcept;
     InstrumentResult _write_file() noexcept;
 };
+
+std::string InstrumentResult2str(InstrumentResult result);
+bool _readTextData(const std::string& input, wasm::Module& wasm);
 
 } // namespace wasm_instrument
 

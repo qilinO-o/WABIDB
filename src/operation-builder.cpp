@@ -1,21 +1,8 @@
-#include "config-builder.hpp"
-#include <parser/wat-parser.h>
+#include "operation-builder.hpp"
 #include <pass.h>
 #include <random>
 
 namespace wasm_instrument {
-
-// binaryen has experimental text parser for wabt output(aka stack style)
-// while it is disabled by flag useNewWATParser = false
-// reimplement it here
-bool _readTextData(const std::string& input, wasm::Module& wasm) {
-    std::string_view in(input.c_str());
-    if (auto parsed = wasm::WATParser::parseModule(wasm, in); auto err = parsed.getErr()) {
-        std::cerr << err->msg << std::endl;
-        return false;
-    }
-    return true;
-}
 
 static std::string _random_prefix_generator() {
     std::string str("0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz");
@@ -62,13 +49,13 @@ void _makeModuleString(std::string& module_str,
     module_str += ")";
 }
 
-// input config and output the data structure of a vector of both pre_list and post_list
+// input operations and output the data structure of a vector of both pre_list and post_list
 // which can be used directly for class Instrumenter to do instrument()
-// this function is called by class Instrumenter when dealing with config
-// return nullptr aka InstrumentResult::config_error
-AddedInstructions* ConfigBuilder::makeConfig(wasm::Module* &mallocator, const InstrumentConfig &config) noexcept {
+// this function is called by class Instrumenter when dealing with operations
+// return nullptr aka InstrumentResult::instrument_error
+AddedInstructions* OperationBuilder::makeOperations(wasm::Module* &mallocator, const std::vector<InstrumentOperation> &operations) noexcept {
     AddedInstructions* added_instructions = new AddedInstructions;
-    added_instructions->vec.resize(config.operations.size());
+    added_instructions->vec.resize(operations.size());
     auto random_prefix = _random_prefix_generator();
     
     std::stringstream mstream;
@@ -80,7 +67,7 @@ AddedInstructions* ConfigBuilder::makeConfig(wasm::Module* &mallocator, const In
     std::string module_str = mstream.str();
     std::string backup_str = module_str;
 
-    _makeModuleString(module_str, config.operations, random_prefix);
+    _makeModuleString(module_str, operations, random_prefix);
 
     auto feature = mallocator->features;
     BinaryenModuleDispose(mallocator);
@@ -88,13 +75,13 @@ AddedInstructions* ConfigBuilder::makeConfig(wasm::Module* &mallocator, const In
     mallocator->features.set(feature);
     
     if (!_readTextData(module_str, *(mallocator))) {
-        std::cerr << "ConfigBuilder: makeConfig() read text error!" << std::endl;
+        std::cerr << "OperationBuilder: makeOperations() read text error!" << std::endl;
         delete added_instructions;
         Colors::setEnabled(is_color);
         BinaryenModuleDispose(mallocator);
         mallocator = BinaryenModuleCreate();
         if (!_readTextData(backup_str, *(mallocator))) {
-            std::cerr << "ConfigBuilder: makeConfig() cannot recover module! Further operations should end!" << std::endl;
+            std::cerr << "OperationBuilder: makeOperations() cannot recover module! Further operations should end!" << std::endl;
         }
         return nullptr;
     }
@@ -107,7 +94,7 @@ AddedInstructions* ConfigBuilder::makeConfig(wasm::Module* &mallocator, const In
     pass_runner.run();
 
     int op_num = 1;
-    for (const auto& operation : config.operations) {
+    for (const auto& _ : operations) {
         std::string op_num_str = std::to_string(op_num);
         auto func1 = BinaryenGetFunction(mallocator, (random_prefix + op_num_str + "_1").c_str());
         auto func2 = BinaryenGetFunction(mallocator, (random_prefix + op_num_str + "_2").c_str());

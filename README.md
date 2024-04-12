@@ -31,7 +31,7 @@ void routine() {
     op1.targets.push_back(InstrumentOperation::ExpName{
       wasm::Expression::Id::CallId, 
       InstrumentOperation::ExpName::ExpOp{.no_op=-1}
-      });
+    });
     op1.pre_instructions = {
         "i32.const 0",
         "drop"
@@ -43,7 +43,7 @@ void routine() {
     config.operations.push_back(op1);
     Instrumenter instrumenter;
     instrumenter.setConfig(config);
-    instrumenter.instrument();
+    instrumenter.instrument({op1,});
     instrumenter.writeBinary();
 }
 ```
@@ -52,20 +52,22 @@ void routine() {
 ### General Instrumentation
 The config of general instrumentation is designed for a match-and-insert semantics. It finds expressions in functions that match vec\<target\> one by one, and insert certain instructions before and after the specific expression.<br/>
 Note that these targets **MUST** be orthogonal.
->`XXXId` in `wasm::Expression::Id`. `XXXOp` now only support unary and binary instructions in `wasm::UnaryOP` and `wasm::BinaryOP`, `-1` to ignore Op check. See the definitions in `wasm.h` of `Binaryen`.
 ```cpp
-op.targets.push_back(
+InstrumentResult instrument(const vector<InstrumentOperation> &operations);
+
+operation.targets.push_back(
   InstrumentOperation::ExpName{
     wasm::Expression::Id::[XXXId], 
     InstrumentOperation::ExpName::ExpOp{[XXXOp]}
-  });
-op.[POSITION]_instructions = {
+  }
+);
+operation.[POSITION]_instructions = {
   "[instruction 1]",
   "[instruction 2]",
   ...
 };
 ```
-General instrumentation can be done by `setConfig()` for an `Instrumenter`, then call `instrument()` and finally call `writeBinary()`.
+>`XXXId` in `wasm::Expression::Id`.<br/> `XXXOp` now only support unary and binary instructions in `wasm::UnaryOP` and `wasm::BinaryOP`, `-1` to ignore Op check. See the definitions in `wasm.h` of `Binaryen`.<br/> `POSITION` can be `pre` or `post`.
 
 ### Add Declaration
 ```cpp
