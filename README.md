@@ -40,7 +40,6 @@ void routine() {
         "i32.const 0",
         "drop"
     };
-    config.operations.push_back(op1);
     Instrumenter instrumenter;
     instrumenter.setConfig(config);
     instrumenter.instrument({op1,});
