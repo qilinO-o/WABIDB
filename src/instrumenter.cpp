@@ -342,7 +342,7 @@ wasm::Global* Instrumenter::addGlobal(const char* name,
     return ret;
 }
 
-void Instrumenter::addFunctions(std::vector<std::string> &names, std::vector<std::string> &func_bodies) noexcept {
+void Instrumenter::addFunctions(const std::vector<std::string> &names, const std::vector<std::string> &func_bodies) noexcept {
     assert(names.size() == func_bodies.size());
     if (this->state_ != InstrumentState::valid) {
         std::cerr << "Instrumenter: wrong state for addFunction()!" << std::endl;

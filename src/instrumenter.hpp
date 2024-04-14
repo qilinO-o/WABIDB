@@ -104,8 +104,8 @@ public:
                             BinaryenLiteral value) noexcept;
     // add functions at one time
     // cannot be called twice!
-    void addFunctions(std::vector<std::string> &names,
-                                std::vector<std::string> &func_bodies) noexcept;
+    void addFunctions(const std::vector<std::string> &names,
+                    const std::vector<std::string> &func_bodies) noexcept;
     // below: if internal_name already exists, just turn the element to import by set external name
     void addImportFunction(const char* internal_name,
                             const char* external_module_name,
