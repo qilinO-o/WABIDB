@@ -128,6 +128,7 @@ When validating the instrumented instructions, we should guarentee that newly de
 | 1     | read module | `setConfig()`    |
 | 2     | declaration | `addImport[*]()` |
 |       |             | `addGlobal()`    |
+|       |             | `addMemory()`    |
 |       |             | `addFunctions()` |
 |       |             | `addExport()`    |
 | 3     | instrument  | `instrument()`   |
