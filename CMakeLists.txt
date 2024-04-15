@@ -11,12 +11,15 @@ endforeach()
 
 add_executable(wasm_instrumenter ${sources})
 
-set(BUILD_STATIC_LIBS ON)
-set(BUILD_SHARED_LIBS OFF)
-set(BUILD_OBJECT_LIBS OFF)
+#set(BUILD_STATIC_LIBS ON)
+set(BUILD_SHARED_LIBS ON)
+#set(BUILD_OBJECT_LIBS ON)
+add_library(wasm_instrumenter_lib ${sources})
 
 target_link_libraries(wasm_instrumenter binaryen)
 target_include_directories(wasm_instrumenter SYSTEM PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/third_party/binaryen/src)
+target_link_libraries(wasm_instrumenter_lib binaryen)
+target_include_directories(wasm_instrumenter_lib SYSTEM PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/third_party/binaryen/src)
 #target_compile_options(wasm_instrumenter PRIVATE -O3)
 
 add_subdirectory(test)
