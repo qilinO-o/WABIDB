@@ -14,13 +14,16 @@ struct InstrumentOperation final {
     struct ExpName {
         wasm::Expression::Id id;
         union ExpOp {
-            int no_op; // -1 to ignore Op check
             wasm::UnaryOp uop;
             wasm::BinaryOp bop;
-            wasm::StackInst::Op cop; // control flow op mark its begin or end
+            // control flow op mark its begin or end
+            wasm::StackInst::Op cop;
             // to be added more op id
         };
-        ExpOp exp_op;
+        // nullopt to ignore Op check
+        std::optional<ExpOp> exp_op;
+        // nullopt to ignore type check
+        std::optional<BinaryenType> exp_type;
     };
     // targets of all operations should be *Orthogonal* !
     std::vector<ExpName> targets;

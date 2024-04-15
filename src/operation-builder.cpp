@@ -13,7 +13,7 @@ static std::string _random_prefix_generator() {
 }
 
 // transform two lists to a well-formed func string like .wat
-std::string _makeIRString(const std::vector<std::string>& pre_list, 
+static std::string _makeIRString(const std::vector<std::string>& pre_list, 
                         const std::vector<std::string>& post_list,
                         int func_num, 
                         const std::string& random_prefix) 
@@ -33,7 +33,7 @@ std::string _makeIRString(const std::vector<std::string>& pre_list,
 }
 
 // transform all operations to a well-formed module string like .wat
-void _makeModuleString(std::string& module_str, 
+static void _makeModuleString(std::string& module_str, 
                                 const std::vector<InstrumentOperation>& operations, 
                                 const std::string& random_prefix)
 {

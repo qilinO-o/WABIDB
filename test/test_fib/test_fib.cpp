@@ -136,7 +136,7 @@ int main() {
     // add code segment before every call
     InstrumentOperation op1;
     op1.targets.push_back(InstrumentOperation::ExpName{
-    wasm::Expression::Id::CallId, InstrumentOperation::ExpName::ExpOp{.no_op=-1}});
+    wasm::Expression::Id::CallId, std::nullopt, std::nullopt});
     op1.pre_instructions = {
         "call $add_call",
     };

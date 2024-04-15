@@ -30,7 +30,7 @@ void routine() {
     InstrumentOperation op1;
     op1.targets.push_back(InstrumentOperation::ExpName{
       wasm::Expression::Id::CallId, 
-      InstrumentOperation::ExpName::ExpOp{.no_op=-1}
+      std::nullopt, std::nullopt
     });
     op1.pre_instructions = {
         "i32.const 0",
@@ -55,19 +55,26 @@ Note that these targets **MUST** be orthogonal.
 ```cpp
 InstrumentResult instrument(const vector<InstrumentOperation> &operations);
 
-operation.targets.push_back(
-  InstrumentOperation::ExpName{
-    wasm::Expression::Id::[XXXId], 
-    InstrumentOperation::ExpName::ExpOp{[XXXOp]}
-  }
-);
-operation.[POSITION]_instructions = {
-  "[instruction 1]",
-  "[instruction 2]",
-  ...
+struct InstrumentOperation {
+    struct ExpName {
+        Expression::Id id;
+        union ExpOp {
+            UnaryOp uop;
+            BinaryOp bop;
+            // control flow op mark its begin or end
+            StackInst::Op cop;
+        };
+        // nullopt to ignore Op check
+        optional<ExpOp> exp_op;
+        // nullopt to ignore type check
+        optional<BinaryenType> exp_type;
+    };
+    vector<ExpName> targets;
+    vector<string> pre_instructions;
+    vector<string> post_instructions;
 };
 ```
->`XXXId` in `wasm::Expression::Id`.<br/> `XXXOp` now only support unary and binary instructions in `wasm::UnaryOP` and `wasm::BinaryOP`, `-1` to ignore Op check. See the definitions in `wasm.h` of `Binaryen`.<br/> `POSITION` can be `pre` or `post`.
+> See Op and Type definitions in `wasm.h`  and `binaryen-c.h` of `Binaryen`.
 
 ### Add Declaration
 ```cpp

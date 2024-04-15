@@ -67,30 +67,49 @@ InstrumentResult Instrumenter::_write_file() noexcept {
     return InstrumentResult::success;
 }
 
-bool _isControlFlowStructure(wasm::Expression::Id id) {
+static bool _isControlFlowStructure(wasm::Expression::Id id) {
     return (id == wasm::Expression::Id::BlockId) || (id == wasm::Expression::Id::IfId) 
         || (id == wasm::Expression::Id::LoopId);
 }
 
-bool _exp_match_targets(const wasm::StackInst* exp, const std::vector<InstrumentOperation::ExpName> &targets) {
-    for (const auto &target : targets) {
-        if (exp->origin->_id == target.id) {
-            if (target.exp_op.no_op == -1) return true;
-            else if (target.id == wasm::Expression::Id::UnaryId) {
-                wasm::Unary* unary_exp = static_cast<wasm::Unary*>(exp->origin);
-                if (unary_exp->op == target.exp_op.uop) return true;
-            } else if (target.id == wasm::Expression::Id::BinaryId) {
-                wasm::Binary* binary_exp = static_cast<wasm::Binary*>(exp->origin);
-                if (binary_exp->op == target.exp_op.bop) return true;
-            } else if (_isControlFlowStructure(target.id)) {
-                if (exp->op == target.exp_op.cop) return true;
-            }
+static bool _exp_match_target(const wasm::StackInst* exp, const InstrumentOperation::ExpName &target) {
+    bool id_match = (exp->origin->_id == target.id);
+    if (!id_match) return false;
+    
+    bool op_match = false;
+    if (target.exp_op.has_value()) {
+        if (target.id == wasm::Expression::Id::UnaryId) {
+            wasm::Unary* unary_exp = static_cast<wasm::Unary*>(exp->origin);
+            if (unary_exp->op == target.exp_op->uop) op_match = true;
+        } else if (target.id == wasm::Expression::Id::BinaryId) {
+            wasm::Binary* binary_exp = static_cast<wasm::Binary*>(exp->origin);
+            if (binary_exp->op == target.exp_op->bop) op_match = true;
+        } else if (_isControlFlowStructure(target.id)) {
+            if (exp->op == target.exp_op->cop) op_match = true;
         }
+    } else {
+        op_match = true;
+    }
+    if (!op_match) return false;
+    
+    bool type_match = false;
+    if (target.exp_type.has_value()) {
+        if (exp->origin->type == wasm::Type(target.exp_type.value())) type_match = true;
+    } else {
+        type_match = true;
+    }
+    if (!type_match) return false;
+    return true;
+}
+
+static bool _exp_match_targets(const wasm::StackInst* exp, const std::vector<InstrumentOperation::ExpName> &targets) {
+    for (const auto &target : targets) {
+        if (_exp_match_target(exp, target)) return true;
     }
     return false;
 }
 
-std::list<wasm::StackInst*> _stack_ir_vec2list(const wasm::StackIR &stack_ir) {
+static std::list<wasm::StackInst*> _stack_ir_vec2list(const wasm::StackIR &stack_ir) {
     std::list<wasm::StackInst*> stack_ir_list;
     for (const auto &stack_instr : stack_ir) {
         if (stack_instr == nullptr) continue;
@@ -99,16 +118,12 @@ std::list<wasm::StackInst*> _stack_ir_vec2list(const wasm::StackIR &stack_ir) {
     return stack_ir_list;
 }
 
-void _stack_ir_list2vec(const std::list<wasm::StackInst*> &stack_ir, wasm::StackIR &stack_ir_vec) {
-    stack_ir_vec.assign(stack_ir.begin(), stack_ir.end());
-}
-
-wasm::StackIR _stack_ir_list2vec(const std::list<wasm::StackInst*> &stack_ir) {
+static wasm::StackIR _stack_ir_list2vec(const std::list<wasm::StackInst*> &stack_ir) {
     wasm::StackIR stack_ir_vec(stack_ir.begin(), stack_ir.end());
     return stack_ir_vec;
 }
 
-void _print_stack_ir(const std::list<wasm::StackInst*> stack_ir_list, bool verbose = false) {
+static void _print_stack_ir(const std::list<wasm::StackInst*> stack_ir_list, bool verbose = false) {
     auto stack_ir_op2str = [](wasm::StackInst::Op op){
         std::string op_map[] = {
             "Basic",

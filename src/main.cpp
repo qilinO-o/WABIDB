@@ -43,7 +43,7 @@ int main(int argc, char **argv) {
     // example: insert an i32.const(2333) and a drop before and after every call
     InstrumentOperation op1;
     op1.targets.push_back(InstrumentOperation::ExpName{
-    wasm::Expression::Id::CallId, InstrumentOperation::ExpName::ExpOp{.no_op=-1}});
+    wasm::Expression::Id::CallId, std::nullopt, std::nullopt});
     op1.pre_instructions = {
         "i32.const 23331",
         "drop"
