@@ -46,6 +46,7 @@ void routine() {
     instrumenter.writeBinary();
 }
 ```
+More examples can be found in `/test` directory.
 
 ## API
 ### General Instrumentation
@@ -76,7 +77,7 @@ Global* addGlobal(const char* name,
                   BinaryenLiteral value);
 void addFunctions(vector<string> &names,
                   vector<string> &func_bodies);
-Memory* addMemory(const char* name, bool if_shared);
+Memory* addMemory(const char* name, bool if_shared, int init_pages, int max_pages);
 ```
 
 ### Add Import
