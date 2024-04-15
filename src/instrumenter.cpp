@@ -403,7 +403,7 @@ void Instrumenter::addFunctions(const std::vector<std::string> &names, const std
     pass_runner.run();
 }
 
-wasm::Memory* Instrumenter::addMemory(const char* name, bool if_shared) noexcept {
+wasm::Memory* Instrumenter::addMemory(const char* name, bool if_shared, int init_pages, int max_pages) noexcept {
     if (this->state_ != InstrumentState::valid) {
         std::cerr << "Instrumenter: wrong state for addMemory()!" << std::endl;
         return nullptr;
@@ -417,6 +417,8 @@ wasm::Memory* Instrumenter::addMemory(const char* name, bool if_shared) noexcept
     auto memory = std::make_unique<wasm::Memory>();
     memory->name = name;
     memory->shared = if_shared;
+    memory->initial = std::max(0, init_pages);
+    memory->max = std::min(max_pages, static_cast<int>(wasm::Memory::kMaxSize32));
     ret = this->module_->addMemory(std::move(memory));
     return ret;
 }

@@ -106,7 +106,7 @@ public:
     // cannot be called twice!
     void addFunctions(const std::vector<std::string> &names,
                     const std::vector<std::string> &func_bodies) noexcept;
-    wasm::Memory* addMemory(const char* name, bool if_shared) noexcept;
+    wasm::Memory* addMemory(const char* name, bool if_shared, int init_pages, int max_pages) noexcept;
     
     // below: if internal_name already exists, just turn the element to import by set external name
     void addImportFunction(const char* internal_name,
