@@ -2,6 +2,16 @@
 
 using namespace wasm_instrument;
 
+/*
+* test_fib doc:
+* 1. read in a side module of a simple fibonacci function
+* 2. add WASI function fd_write()
+* 3. add global to record the number of calls being executed
+* 4. add memory section
+* 5. add function as _start for running the test in standalone runtimes
+*    the _start function calls fib(x) then print its result(or maybe the number of calls)
+* 6. add function to transfer int(i32) to char*(i32) which is compiled from cpp
+*/
 int main() {
     std::string relative_path = "../../test/test_fib/";
     
