@@ -271,6 +271,14 @@ wasm::Function* Instrumenter::getFunction(const char* name) noexcept {
     return BinaryenGetFunction(this->module_, name);
 }
 
+wasm::Memory* Instrumenter::getMemory(const char* name) noexcept {
+    if (this->state_ != InstrumentState::valid) {
+        std::cerr << "Instrumenter: wrong state for getMemory()!" << std::endl;
+        return nullptr;
+    }
+    return this->module_->getMemoryOrNull(name);
+}
+
 wasm::Export* Instrumenter::getExport(const char* external_name) noexcept {
     if (this->state_ != InstrumentState::valid) {
         std::cerr << "Instrumenter: wrong state for getExport()!" << std::endl;
@@ -393,6 +401,24 @@ void Instrumenter::addFunctions(const std::vector<std::string> &names, const std
     pass_runner.add("generate-stack-ir");
     pass_runner.add("optimize-stack-ir");
     pass_runner.run();
+}
+
+wasm::Memory* Instrumenter::addMemory(const char* name, bool if_shared) noexcept {
+    if (this->state_ != InstrumentState::valid) {
+        std::cerr << "Instrumenter: wrong state for addMemory()!" << std::endl;
+        return nullptr;
+    }
+    auto ret = this->getMemory(name);
+    if (ret != nullptr) {
+        std::cerr << "Instrumenter: memory name: "<< name << " already exists!" << std::endl;
+        return nullptr;
+    }
+    
+    auto memory = std::make_unique<wasm::Memory>();
+    memory->name = name;
+    memory->shared = if_shared;
+    ret = this->module_->addMemory(std::move(memory));
+    return ret;
 }
 
 void Instrumenter::addImportFunction(const char* internal_name,

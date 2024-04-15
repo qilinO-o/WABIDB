@@ -76,6 +76,7 @@ Global* addGlobal(const char* name,
                   BinaryenLiteral value);
 void addFunctions(vector<string> &names,
                   vector<string> &func_bodies);
+Memory* addMemory(const char* name, bool if_shared);
 ```
 
 ### Add Import
@@ -100,6 +101,7 @@ Export* addExport(ModuleItemKind kind,
 ```cpp
 Global*   getGlobal(const char* name);
 Function* getFunction(const char* name);
+Memory* getMemory(const char* name);
 Export*   getExport(const char* external_name);
 Importable* getImport(ModuleItemKind kind, const char* base_name);
 Function* getStartFunction();
