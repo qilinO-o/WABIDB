@@ -1,4 +1,4 @@
-# [WIP]WABIDB
+# WABIDB
 
 `WABIDB` is an instrumentation and debug framework for WebAssembly Binary. This repository uses [`Binaryen`](https://github.com/WebAssembly/binaryen) as a parse backend in order to be up-to-date with the latest WASM standards and proposals.
 
@@ -13,10 +13,14 @@ After that you can build with CMake:
 mkdir build && cd build
 cmake .. && make
 ```
+Run all tests registered in [./test/CMakeLists.txt](./test/CMakeLists.txt):
+```
+make test
+```
 
-## Usage Instructions
-
-`WABIDB` uses `class Instrumenter` internally, which is also potentially useful for individual usage in other projects. You only need to import `instrumenter.hpp` for basic C++ APIs. It provides a general wasm binary instrumentation tool that is easy to use and powerful as well.
+## Usage Tutorial
+### Instrumentation
+`WABIDB` basically provides the ability to modify a wasm binary, which is also potentially useful for individual usage in other projects. You only need to import [`instrumenter.hpp`](./src/instrumenter.hpp) for basic [C++ APIs](#api).
 
 Note that these APIs **MUST** be called in a certain sequence described in section [Calling Sequence](#calling-sequence).
 
@@ -26,7 +30,7 @@ void routine() {
     InstrumentConfig config;
     config.filename = "./test.wasm";
     config.targetname = "./test_instr.wasm";
-    // example: insert an i32.const 0 and a drop before and after every call
+    // example: insert an i32.const 0 and a drop before every call
     InstrumentOperation op1;
     op1.targets.push_back(InstrumentOperation::ExpName{
       wasm::Expression::Id::CallId, 
@@ -36,22 +40,22 @@ void routine() {
         "i32.const 0",
         "drop"
     };
-    op1.post_instructions = {
-        "i32.const 0",
-        "drop"
-    };
+    op1.post_instructions = {};
     Instrumenter instrumenter;
     instrumenter.setConfig(config);
     instrumenter.instrument({op1,});
     instrumenter.writeBinary();
 }
 ```
-More examples can be found in `/test` directory.
+More examples can be found in [test](./test/) directory.
+
+### Debug
+⚠️ Still under construction!
 
 ## API
 ### General Instrumentation
-The config of general instrumentation is designed for a match-and-insert semantics. It finds expressions in functions that match vec\<target\> one by one, and insert certain instructions before and after the specific expression.<br/>
-Note that these targets **MUST** be orthogonal.
+The config of general instrumentation is designed for a match-and-insert semantics. It finds expressions in functions that match any target of a target set, and insert certain instructions before and after the specific expressions.<br/>
+Note that these targets **MUST** be orthogonal. (Or we say the target in front is matched first)
 ```cpp
 InstrumentResult instrument(const vector<InstrumentOperation> &operations);
 
@@ -74,7 +78,7 @@ struct InstrumentOperation {
     vector<string> post_instructions;
 };
 ```
-> See Op and Type definitions in `wasm.h`  and `binaryen-c.h` of `Binaryen`.
+> See Op and Type definitions in [`wasm.h`](https://github.com/WebAssembly/binaryen/blob/main/src/wasm.h) and [`binaryen-c.h`](https://github.com/WebAssembly/binaryen/blob/main/src/binaryen-c.h) of [`Binaryen`](https://github.com/WebAssembly/binaryen).
 
 ### Add Declaration
 ```cpp
@@ -84,11 +88,12 @@ Global* addGlobal(const char* name,
                   BinaryenLiteral value);
 void addFunctions(vector<string> &names,
                   vector<string> &func_bodies);
-Memory* addMemory(const char* name, bool if_shared, int init_pages, int max_pages);
+Memory* addMemory(const char* name, bool if_shared, 
+                  int init_pages, int max_pages);
 ```
 
 ### Add Import
-Mostly similar to API of `Binaryen`:
+Mostly similar to APIs of [`Binaryen`](https://github.com/WebAssembly/binaryen):
 ```cpp
 void addImportFunction(const char* internal_name,
                        const char* external_module_name,
@@ -107,12 +112,12 @@ Export* addExport(ModuleItemKind kind,
 
 ### Find Operations
 ```cpp
-Global*   getGlobal(const char* name);
-Function* getFunction(const char* name);
-Memory* getMemory(const char* name);
-Export*   getExport(const char* external_name);
+Global*     getGlobal(const char* name);
+Function*   getFunction(const char* name);
+Memory*     getMemory(const char* name);
+Export*     getExport(const char* external_name);
 Importable* getImport(ModuleItemKind kind, const char* base_name);
-Function* getStartFunction();
+Function*   getStartFunction();
 ```
 
 ### Print
@@ -121,7 +126,7 @@ void print(bool if_stack_ir = false);
 ```
 
 ### Scope
-`instrument()` will be performed on functions in the scope. The scope contains all defined(unimport) functions of the original binary by default. You can modify the scope using following apis.
+`instrument()` will be performed on functions in the scope. The scope contains all defined(unimport) functions of the original binary by default. You can modify the scope using following APIs.
 ```cpp
 bool scope_add(const std::string& name);
 bool scope_remove(const std::string& name);
@@ -142,9 +147,12 @@ When validating the instrumented instructions, we should guarentee that newly de
 | 3     | instrument  | `instrument()`   |
 | 4     | write back  | `writeBinary()`  |
 
-All `get[*]()` can be called in phase 2 & 3. Scope apis should be called before phase 3.
+All `get[*]()` can be called in phase 2 & 3. Scope APIs should be called before phase 3.
 
 ## Support Information
 Default support WebAssembly version 1 (MVP), can be easily set for further features. Using `Binaryen` enables `WABIDB` to support most up-to-date proposals.
 
 Now use an experimental WAT-parser of `Binaryen`, which may be switched when [`issue#6208`](https://github.com/WebAssembly/binaryen/issues/6208) is fully resolved.
+
+## Misc
+I guess "WABIDB" should be pronounced as "Wabi Debugger", anyway.
