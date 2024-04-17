@@ -8,19 +8,7 @@
 #include <support/colors.h>
 #include <parser/wat-parser.h>
 
-namespace wasm_instrument{
-
-// binaryen has experimental text parser for wabt output(aka stack style)
-// while it is disabled by flag useNewWATParser = false
-// reimplement it here
-bool _readTextData(const std::string& input, wasm::Module& wasm) {
-    std::string_view in(input.c_str());
-    if (auto parsed = wasm::WATParser::parseModule(wasm, in); auto err = parsed.getErr()) {
-        std::cerr << err->msg << std::endl;
-        return false;
-    }
-    return true;
-}
+namespace wasm_instrument {
 
 std::string InstrumentResult2str(InstrumentResult result) {
     std::string result_map[] = {
@@ -35,10 +23,20 @@ std::string InstrumentResult2str(InstrumentResult result) {
     return result_map[int(result)];
 }
 
+// binaryen has experimental text parser for wabt output(aka stack style)
+// while it is disabled by flag useNewWATParser = false
+// reimplement it here
+bool _readTextData(const std::string& input, wasm::Module& wasm) {
+    std::string_view in(input.c_str());
+    if (auto parsed = wasm::WATParser::parseModule(wasm, in); auto err = parsed.getErr()) {
+        std::cerr << err->msg << std::endl;
+        return false;
+    }
+    return true;
+}
+
 InstrumentResult Instrumenter::_read_file() noexcept {
-    // wasm MVP feature
-    const auto FEATURE_USED = wasm::FeatureSet::MVP;
-    this->module_->features.enable(FEATURE_USED);
+    this->module_->features.enable(this->config_.feature);
 
     wasm::ModuleReader reader;
     try {

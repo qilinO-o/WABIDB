@@ -46,6 +46,7 @@ struct AddedInstructions {
 struct InstrumentConfig final {
     std::string filename;
     std::string targetname;
+    wasm::FeatureSet feature = wasm::FeatureSet::MVP;
 };
 
 enum InstrumentResult {
@@ -164,6 +165,10 @@ public:
         this->function_scope_.clear();
     }
 
+    // tool api
+    wasm::Module* getModule() {
+        return this->module_;
+    }
     
 private:
     InstrumentConfig config_;
