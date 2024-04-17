@@ -8,6 +8,14 @@
 
 namespace wasm_instrument {
 
+const wasm::FeatureSet FEATURE_SPEC = wasm::FeatureSet::BulkMemory |
+                                    wasm::FeatureSet::Multivalue |
+                                    wasm::FeatureSet::SignExt |
+                                    wasm::FeatureSet::MutableGlobals |
+                                    wasm::FeatureSet::SIMD |
+                                    wasm::FeatureSet::ReferenceTypes |
+                                    wasm::FeatureSet::TruncSat;
+
 // struct to define a certain operation
 // add /add_instructions/ at /location/ of the current expression that matches /targets/
 struct InstrumentOperation final {
@@ -46,7 +54,7 @@ struct AddedInstructions {
 struct InstrumentConfig final {
     std::string filename;
     std::string targetname;
-    wasm::FeatureSet feature = wasm::FeatureSet::MVP;
+    wasm::FeatureSet feature = FEATURE_SPEC;
 };
 
 enum InstrumentResult {
@@ -110,6 +118,7 @@ public:
     // cannot be called twice!
     void addFunctions(const std::vector<std::string> &names,
                     const std::vector<std::string> &func_bodies) noexcept;
+    // Multiple memories proposal needed!
     wasm::Memory* addMemory(const char* name, bool if_shared, int init_pages, int max_pages) noexcept;
     
     // below: if internal_name already exists, just turn the element to import by set external name
@@ -123,7 +132,7 @@ public:
                         const char* external_base_name,
                         BinaryenType type,
                         bool if_mutable) noexcept;
-    // MVP may not support!
+    // Multiple memories proposal needed!
     void addImportMemory(const char* internal_name,
                         const char* external_module_name,
                         const char* external_base_name,

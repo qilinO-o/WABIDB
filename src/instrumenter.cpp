@@ -421,6 +421,10 @@ wasm::Memory* Instrumenter::addMemory(const char* name, bool if_shared, int init
         std::cerr << "Instrumenter: wrong state for addMemory()!" << std::endl;
         return nullptr;
     }
+    if ((!this->config_.feature.hasMultiMemory()) && (this->module_->memories.size() != 0)) {
+        std::cerr << "Instrumenter: cannot have multiple memories" << std::endl;
+        return nullptr;
+    }
     auto ret = this->getMemory(name);
     if (ret != nullptr) {
         std::cerr << "Instrumenter: memory name: "<< name << " already exists!" << std::endl;
@@ -469,6 +473,10 @@ void Instrumenter::addImportMemory(const char* internal_name,
 {
     if (this->state_ != InstrumentState::valid) {
         std::cerr << "Instrumenter: wrong state for addImportGlobal()!" << std::endl;
+        return;
+    }
+    if ((!this->config_.feature.hasMultiMemory()) && (this->module_->getMemoryOrNull(internal_name) == nullptr)) {
+        std::cerr << "Instrumenter: cannot have multiple memories" << std::endl;
         return;
     }
     BinaryenAddMemoryImport(this->module_, internal_name, external_module_name, external_base_name, if_shared);

@@ -86,7 +86,7 @@ Global* addGlobal(const char* name,
                   BinaryenType type, 
                   bool if_mutable, 
                   BinaryenLiteral value);
-void addFunctions(vector<string> &names,
+void    addFunctions(vector<string> &names,
                   vector<string> &func_bodies);
 Memory* addMemory(const char* name, bool if_shared, 
                   int init_pages, int max_pages);
@@ -150,7 +150,7 @@ When validating the instrumented instructions, we should guarentee that newly de
 All `get[*]()` can be called in phase 2 & 3. Scope APIs should be called before phase 3.
 
 ## Support Information
-Default support WebAssembly version 1 (MVP), can be easily set for further features. Using `Binaryen` enables `WABIDB` to support most up-to-date proposals.
+Default support the core spec and all [proposals](https://github.com/WebAssembly/spec/tree/main/proposals) in the spec, can be easily set for further features. Using `Binaryen` enables `WABIDB` to support most up-to-date proposals.
 
 Now use an experimental WAT-parser of `Binaryen`, which may be switched when [`issue#6208`](https://github.com/WebAssembly/binaryen/issues/6208) is fully resolved.
 
