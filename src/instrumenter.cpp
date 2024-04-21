@@ -206,7 +206,7 @@ InstrumentResult Instrumenter::instrument(const std::vector<InstrumentOperation>
     // do specific instrument operations in config
     // iter through functions in the module
     auto func_visitor = [this, &operations](wasm::Function* func){
-        if (!this->scope_contains(func->name.toString())) return;
+        if (!this->scopeContains(func->name.toString())) return;
         std::cout << "in function: " << func->name << " type: " << func->type.toString() << std::endl;
     
         // stack ir check

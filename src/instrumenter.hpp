@@ -158,19 +158,19 @@ public:
     }
 
     // scope apis
-    bool scope_add(const std::string& name) {
+    bool scopeAdd(const std::string& name) {
         return this->function_scope_.emplace(name).second;
     }
-    bool scope_remove(const std::string& name) {
+    bool scopeRemove(const std::string& name) {
         auto i = this->function_scope_.find(name);
         if (i == this->function_scope_.end()) return false;
         this->function_scope_.erase(i);
         return true;
     }
-    bool scope_contains(const std::string& name) {
+    bool scopeContains(const std::string& name) {
         return static_cast<bool>(this->function_scope_.count(name));
     }
-    void scope_clear() {
+    void scopeClear() {
         this->function_scope_.clear();
     }
 

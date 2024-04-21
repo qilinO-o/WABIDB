@@ -128,10 +128,10 @@ void print(bool if_stack_ir = false);
 ### Scope
 `instrument()` will be performed on functions in the scope. The scope contains all defined(unimport) functions of the original binary by default. You can modify the scope using following APIs.
 ```cpp
-bool scope_add(const std::string& name);
-bool scope_remove(const std::string& name);
-bool scope_contains(const std::string& name);
-void scope_clear();
+bool scopeAdd(const std::string& name);
+bool scopeRemove(const std::string& name);
+bool scopeContains(const std::string& name);
+void scopeClear();
 ```
 
 ## Calling Sequence
