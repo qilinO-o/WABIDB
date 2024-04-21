@@ -54,8 +54,12 @@ More examples can be found in [test](./test/) directory.
 
 ## API
 ### General Instrumentation
-The config of general instrumentation is designed for a match-and-insert semantics. It finds expressions in functions that match any target of a target set, and insert certain instructions before and after the specific expressions.<br/>
-Note that these targets **MUST** be orthogonal. (Or we say the target in front is matched first)
+The config of general instrumentation is designed for a match-and-insert semantics. It finds expressions in functions that match any target of a target set, and insert certain instructions before and after the specific expressions.
+
+Note that these targets **MUST** be orthogonal(Or we say the target in front is matched first). 
+
+Inserted instructions should be carefully designed to maintain a still balanced stack after insertions.
+
 ```cpp
 InstrumentResult instrument(const vector<InstrumentOperation> &operations);
 
