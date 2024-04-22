@@ -198,19 +198,20 @@ InstrumentResult Instrumenter::instrument(const std::vector<InstrumentOperation>
 
     // parse operations
     OperationBuilder builder;
-    this->added_instructions_ = builder.makeOperations(this->module_, operations);
-    if (!this->added_instructions_) {
+    auto added_instructions = builder.makeOperations(this->module_, operations);
+    if (!added_instructions) {
+        std::cerr << "Instrumenter: instrumentFunction() parse operations error!" << std::endl;
         return InstrumentResult::instrument_error;
     }
 
     // do specific instrument operations in config
     // iter through functions in the module
-    auto func_visitor = [this, &operations](wasm::Function* func){
+    auto func_visitor = [this, &operations, &added_instructions](wasm::Function* func){
         if (!this->scopeContains(func->name.toString())) return;
         std::cout << "in function: " << func->name << " type: " << func->type.toString() << std::endl;
     
         // stack ir check
-        assert(func->stackIR.get() != nullptr);
+        assert(func->stackIR != nullptr);
 
         // iter through the body in the current function (with Stack IR)
         // transform the vector of stack ir to a list for better modification
@@ -229,10 +230,10 @@ InstrumentResult Instrumenter::instrument(const std::vector<InstrumentOperation>
                     continue;
                 } 
                 stack_ir_list.splice(i, _stack_ir_vec2list(
-                    this->added_instructions_->vec[op_num].pre_instructions));
+                    added_instructions->vec[op_num].pre_instructions));
                 std::advance(i, 1);
                 stack_ir_list.splice(i, _stack_ir_vec2list(
-                    this->added_instructions_->vec[op_num].post_instructions));
+                    added_instructions->vec[op_num].post_instructions));
                 std::advance(i, -1);
                 break;
             }
@@ -503,6 +504,62 @@ wasm::Export* Instrumenter::addExport(wasm::ModuleItemKind kind, const char* int
         default:
             return nullptr;
     }
+}
+
+InstrumentResult Instrumenter::instrumentFunction(const InstrumentOperation &operation,
+                                                const char* name,
+                                                size_t pos) noexcept
+{
+    if (this->state_ != InstrumentState::valid) {
+        std::cerr << "Instrumenter: wrong state for instrumentFunction()!" << std::endl;
+        return InstrumentResult::invalid_state;
+    }
+
+    // parse operation
+    OperationBuilder builder;
+    auto added_instructions = builder.makeOperations(this->module_, {operation});
+    if (!added_instructions) {
+        std::cerr << "Instrumenter: instrumentFunction() parse operation error!" << std::endl;
+        return InstrumentResult::instrument_error;
+    }
+
+    auto func = this->module_->getFunctionOrNull(name);
+    if (func == nullptr) {
+        std::cerr << "Instrumenter: function name: "<< name << " does not exists!" << std::endl;
+        return InstrumentResult::instrument_error;
+    }
+    if (func->imported()) {
+        std::cerr << "Instrumenter: function name: "<< name << " is a import!" << std::endl;
+        return InstrumentResult::instrument_error;
+    }
+
+    std::cout << "in function: " << func->name << " type: " << func->type.toString() << std::endl;
+    // stack ir check
+    assert(func->stackIR != nullptr);
+    if ((pos < 0) || (pos > func->stackIR->size())) {
+        std::cerr << "Instrumenter: instrumentFunction() pos invalid!" << std::endl;
+        return InstrumentResult::instrument_error;
+    }
+
+    // transform the vector of stack ir to a list for better modification
+    std::list<wasm::StackInst*> stack_ir_list = _stack_ir_vec2list(*(func->stackIR));
+    
+    // perform operation on the pos
+    auto iter = stack_ir_list.begin();
+    std::advance(iter, pos);
+    stack_ir_list.splice(iter, _stack_ir_vec2list(added_instructions->vec[0].post_instructions));
+
+    // write back the modified stack ir list to the func
+    auto new_stack_ir_vec = _stack_ir_list2vec(stack_ir_list);
+    func->stackIR = std::make_unique<wasm::StackIR>(new_stack_ir_vec);
+
+    // validate the module after modification
+    if (!BinaryenModuleValidate(this->module_)) {
+        std::cerr << "Instrumenter: instrumentFunction() error when validate!" << std::endl;
+        return InstrumentResult::validate_error;
+    }
+    
+    return InstrumentResult::success;
 }
 
 }

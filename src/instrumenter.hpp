@@ -97,6 +97,7 @@ public:
     InstrumentResult setConfig(const InstrumentConfig &config) noexcept;
     // do the general instrumentations with match-and-insert semantics
     // and validate the modified module
+    // make sure that the stack is balanced after insertion to pass the validation
     InstrumentResult instrument(const std::vector<InstrumentOperation> &operations) noexcept;
     // write the module to binary file with name config.targetname
     InstrumentResult writeBinary() noexcept;
@@ -105,7 +106,6 @@ public:
     void clear() {
         this->state_ = InstrumentState::idle;
         BinaryenModuleDispose(this->module_);
-        delete this->added_instructions_;
         this->module_ = BinaryenModuleCreate();
     }
 
@@ -178,12 +178,20 @@ public:
     wasm::Module* getModule() {
         return this->module_;
     }
+
+    // insert instructions in operation.post_instructions after the line of pos
+    // instructions are indexed from 1
+    // pos = 0 equals to insert at the beginning
+    // only for careful use in that user should be aware of the valid pos
+    // and make sure that the stack is balanced after insertion to pass the validation
+    InstrumentResult instrumentFunction(const InstrumentOperation &operation,
+                                        const char* name,
+                                        size_t pos) noexcept;
     
 private:
     InstrumentConfig config_;
     wasm::Module* module_;
     InstrumentState state_ = InstrumentState::idle;
-    AddedInstructions* added_instructions_;
     // record function names that should be instrumented
     // default contain all unimport functions from the original binary
     std::set<std::string> function_scope_;
