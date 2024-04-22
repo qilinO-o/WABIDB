@@ -120,7 +120,8 @@ public:
                     const std::vector<std::string> &func_bodies) noexcept;
     // Multiple memories proposal needed!
     wasm::Memory* addMemory(const char* name, bool if_shared, int init_pages, int max_pages) noexcept;
-    
+    wasm::DataSegment* addPassiveDateSegment(const char* name, const char* data, size_t len) noexcept;
+
     // below: if internal_name already exists, just turn the element to import by set external name
     void addImportFunction(const char* internal_name,
                             const char* external_module_name,
@@ -143,6 +144,7 @@ public:
     wasm::Global* getGlobal(const char* name) noexcept;
     wasm::Function* getFunction(const char* name) noexcept;
     wasm::Memory* getMemory(const char* name) noexcept;
+    wasm::DataSegment* getDateSegment(const char* name) noexcept;
     wasm::Export* getExport(const char* external_name) noexcept;
     // use base name for better WASI support
     wasm::Importable* getImport(wasm::ModuleItemKind kind, const char* base_name) noexcept;

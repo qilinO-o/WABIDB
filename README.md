@@ -86,14 +86,17 @@ struct InstrumentOperation {
 
 ### Add Declaration
 ```cpp
-Global* addGlobal(const char* name, 
-                  BinaryenType type, 
-                  bool if_mutable, 
-                  BinaryenLiteral value);
-void    addFunctions(vector<string> &names,
+Global*      addGlobal(const char* name, 
+                    BinaryenType type, 
+                    bool if_mutable, 
+                    BinaryenLiteral value);
+void         addFunctions(vector<string> &names,
                   vector<string> &func_bodies);
-Memory* addMemory(const char* name, bool if_shared, 
+Memory*      addMemory(const char* name, bool if_shared, 
                   int init_pages, int max_pages);
+DataSegment* addPassiveDateSegment(const char* name,
+                                const char* data,
+                                size_t len);
 ```
 
 ### Add Import
@@ -116,12 +119,13 @@ Export* addExport(ModuleItemKind kind,
 
 ### Find Operations
 ```cpp
-Global*     getGlobal(const char* name);
-Function*   getFunction(const char* name);
-Memory*     getMemory(const char* name);
-Export*     getExport(const char* external_name);
-Importable* getImport(ModuleItemKind kind, const char* base_name);
-Function*   getStartFunction();
+Global*      getGlobal(const char* name);
+Function*    getFunction(const char* name);
+Memory*      getMemory(const char* name);
+DataSegment* getDateSegment(const char* name);
+Export*      getExport(const char* external_name);
+Importable*  getImport(ModuleItemKind kind, const char* base_name);
+Function*    getStartFunction();
 ```
 
 ### Print
@@ -140,16 +144,17 @@ void scopeClear();
 
 ## Calling Sequence
 When validating the instrumented instructions, we should guarentee that newly defined `global`s, `import`s and `function`s can be found. Thus, a calling sequence should be obeyed as follow:
-| Phase | State       | Call             |
-| :---: | :---------: | :--------------: |
-| 1     | read module | `setConfig()`    |
-| 2     | declaration | `addImport[*]()` |
-|       |             | `addGlobal()`    |
-|       |             | `addMemory()`    |
-|       |             | `addFunctions()` |
-|       |             | `addExport()`    |
-| 3     | instrument  | `instrument()`   |
-| 4     | write back  | `writeBinary()`  |
+| Phase | State       | Call                         |
+| :---: | :---------: | :--------------------------: |
+| 1     | read module | `setConfig()`                |
+| 2     | declaration | `addImport[*]()`             |
+|       |             | `addGlobal()`                |
+|       |             | `addMemory()`                |
+|       |             | `addPassiveDataSegment()`    |
+|       |             | `addFunctions()`             |
+|       |             | `addExport()`                |
+| 3     | instrument  | `instrument()`               |
+| 4     | write back  | `writeBinary()`              |
 
 All `get[*]()` can be called in phase 2 & 3. Scope APIs should be called before phase 3.
 

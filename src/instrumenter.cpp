@@ -293,6 +293,14 @@ wasm::Memory* Instrumenter::getMemory(const char* name) noexcept {
     return this->module_->getMemoryOrNull(name);
 }
 
+wasm::DataSegment* Instrumenter::getDateSegment(const char* name) noexcept {
+    if (this->state_ != InstrumentState::valid) {
+        std::cerr << "Instrumenter: wrong state for getDataSegment()!" << std::endl;
+        return nullptr;
+    }
+    return this->module_->getDataSegmentOrNull(name);
+}
+
 wasm::Export* Instrumenter::getExport(const char* external_name) noexcept {
     if (this->state_ != InstrumentState::valid) {
         std::cerr << "Instrumenter: wrong state for getExport()!" << std::endl;
@@ -439,6 +447,15 @@ wasm::Memory* Instrumenter::addMemory(const char* name, bool if_shared, int init
     memory->max = std::min(max_pages, static_cast<int>(wasm::Memory::kMaxSize32));
     ret = this->module_->addMemory(std::move(memory));
     return ret;
+}
+
+wasm::DataSegment* Instrumenter::addPassiveDateSegment(const char* name, const char* data, size_t len) noexcept {
+    if (this->state_ != InstrumentState::valid) {
+        std::cerr << "Instrumenter: wrong state for addPassiveDataSegment()!" << std::endl;
+        return nullptr;
+    }
+    BinaryenAddDataSegment(this->module_, name, nullptr, true, nullptr, data, len);
+    return this->module_->getDataSegmentOrNull(name);
 }
 
 void Instrumenter::addImportFunction(const char* internal_name,
