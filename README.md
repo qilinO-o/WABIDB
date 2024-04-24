@@ -86,17 +86,19 @@ struct InstrumentOperation {
 
 ### Add Declaration
 ```cpp
-Global*      addGlobal(const char* name, 
-                    BinaryenType type, 
-                    bool if_mutable, 
-                    BinaryenLiteral value);
+Global*      addGlobal(const char* name,
+                       BinaryenType type,
+                       bool if_mutable,
+                       BinaryenLiteral value);
 void         addFunctions(vector<string> &names,
-                  vector<string> &func_bodies);
-Memory*      addMemory(const char* name, bool if_shared, 
-                  int init_pages, int max_pages);
+                          vector<string> &func_bodies);
+Memory*      addMemory(const char* name,
+                       bool if_shared,
+                       int init_pages,
+                       int max_pages);
 DataSegment* addPassiveDateSegment(const char* name,
-                                const char* data,
-                                size_t len);
+                                   const char* data,
+                                   size_t len);
 ```
 
 ### Add Import
