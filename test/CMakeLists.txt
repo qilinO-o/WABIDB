@@ -7,6 +7,7 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_TEST_BINARY_DIR})
 
 set(test_list)
 list(APPEND test_list test_fib)
+list(APPEND test_list test_path_open)
 foreach(test ${test_list})
     message("add test file: ${test}")
     add_executable(${test} ${CMAKE_SOURCE_DIR}/test/${test}/${test}.cpp)
