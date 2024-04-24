@@ -13,7 +13,7 @@ using namespace wasm_instrument;
 * 6. add function to transfer int(i32) to char*(i32) which is compiled from cpp
 */
 int main() {
-    std::string relative_path = "../../test/test_fib/";
+    std::string relative_path = "../test/test_fib/";
     
     InstrumentConfig config;
     // the wasm file is compiled from fib.cpp

@@ -25,3 +25,6 @@ target_include_directories(wasm_instrumenter_lib SYSTEM PRIVATE ${CMAKE_CURRENT_
 add_subdirectory(test)
 enable_testing()
 add_test(test_fib ${PROJECT_BINARY_DIR}/test/test_fib)
+add_test(test_path_open ${PROJECT_BINARY_DIR}/test/test_path_open)
+
+add_subdirectory(src/tools)
