@@ -85,12 +85,13 @@ struct InstrumentOperation {
 > See Op and Type definitions in [`wasm.h`](https://github.com/WebAssembly/binaryen/blob/main/src/wasm.h) and [`binaryen-c.h`](https://github.com/WebAssembly/binaryen/blob/main/src/binaryen-c.h) of [`Binaryen`](https://github.com/WebAssembly/binaryen).
 
 ### Add Declaration
+`nullptr` or `false` to indicate failure.
 ```cpp
 Global*      addGlobal(const char* name,
                        BinaryenType type,
                        bool if_mutable,
                        BinaryenLiteral value);
-void         addFunctions(vector<string> &names,
+bool         addFunctions(vector<string> &names,
                           vector<string> &func_bodies);
 Memory*      addMemory(const char* name,
                        bool if_shared,
@@ -102,17 +103,19 @@ DataSegment* addPassiveDateSegment(const char* name,
 ```
 
 ### Add Import
+`false` to indicate failure.
 Mostly similar to APIs of [`Binaryen`](https://github.com/WebAssembly/binaryen):
 ```cpp
-void addImportFunction(const char* internal_name,
+bool addImportFunction(const char* internal_name,
                        const char* external_module_name,
                        const char* external_base_name,
                        ...[specific attributes]);
-void addImportGlobal(...);
-void addImportMemory(...);
+bool addImportGlobal(...);
+bool addImportMemory(...);
 ```
 
 ### Add Export
+`nullptr` to indicate failure.
 ```cpp
 Export* addExport(ModuleItemKind kind, 
                   const char* internal_name, 
@@ -120,6 +123,7 @@ Export* addExport(ModuleItemKind kind,
 ```
 
 ### Find Operations
+`nullptr` to indicate failure.
 ```cpp
 Global*      getGlobal(const char* name);
 Function*    getFunction(const char* name);

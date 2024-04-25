@@ -116,25 +116,25 @@ public:
                             BinaryenLiteral value) noexcept;
     // add functions at one time
     // cannot be called twice!
-    void addFunctions(const std::vector<std::string> &names,
+    bool addFunctions(const std::vector<std::string> &names,
                     const std::vector<std::string> &func_bodies) noexcept;
     // Multiple memories proposal needed!
     wasm::Memory* addMemory(const char* name, bool if_shared, int init_pages, int max_pages) noexcept;
     wasm::DataSegment* addPassiveDateSegment(const char* name, const char* data, size_t len) noexcept;
 
     // below: if internal_name already exists, just turn the element to import by set external name
-    void addImportFunction(const char* internal_name,
+    bool addImportFunction(const char* internal_name,
                             const char* external_module_name,
                             const char* external_base_name,
                             BinaryenType params,
                             BinaryenType results) noexcept;
-    void addImportGlobal(const char* internal_name,
+    bool addImportGlobal(const char* internal_name,
                         const char* external_module_name,
                         const char* external_base_name,
                         BinaryenType type,
                         bool if_mutable) noexcept;
     // Multiple memories proposal needed!
-    void addImportMemory(const char* internal_name,
+    bool addImportMemory(const char* internal_name,
                         const char* external_module_name,
                         const char* external_base_name,
                         bool if_shared) noexcept;

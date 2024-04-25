@@ -372,17 +372,17 @@ wasm::Global* Instrumenter::addGlobal(const char* name,
     return ret;
 }
 
-void Instrumenter::addFunctions(const std::vector<std::string> &names, const std::vector<std::string> &func_bodies) noexcept {
+bool Instrumenter::addFunctions(const std::vector<std::string> &names, const std::vector<std::string> &func_bodies) noexcept {
     assert(names.size() == func_bodies.size());
     if (this->state_ != InstrumentState::valid) {
         std::cerr << "Instrumenter: wrong state for addFunction()!" << std::endl;
-        return;
+        return false;
     }
     for (auto i = 0; i < names.size(); i++) {
         auto cur = this->getFunction(names[i].c_str());
         if (cur != nullptr) {
             std::cerr << "Instrumenter: function name: "<< names[i] << " already exists!" << std::endl;
-            return;
+            return false;
         }
     }
 
@@ -414,7 +414,7 @@ void Instrumenter::addFunctions(const std::vector<std::string> &names, const std
         if (!_readTextData(backup_str, *(this->module_))) {
             std::cerr << "Instrumenter: addFunctions() cannot recover module! Further operations should end!" << std::endl;
         }
-        return;
+        return false;
     }
     Colors::setEnabled(is_color);
 
@@ -423,6 +423,7 @@ void Instrumenter::addFunctions(const std::vector<std::string> &names, const std
     pass_runner.add("generate-stack-ir");
     pass_runner.add("optimize-stack-ir");
     pass_runner.run();
+    return true;
 }
 
 wasm::Memory* Instrumenter::addMemory(const char* name, bool if_shared, int init_pages, int max_pages) noexcept {
@@ -458,7 +459,7 @@ wasm::DataSegment* Instrumenter::addPassiveDateSegment(const char* name, const c
     return this->module_->getDataSegmentOrNull(name);
 }
 
-void Instrumenter::addImportFunction(const char* internal_name,
+bool Instrumenter::addImportFunction(const char* internal_name,
                                     const char* external_module_name,
                                     const char* external_base_name,
                                     BinaryenType params,
@@ -466,12 +467,13 @@ void Instrumenter::addImportFunction(const char* internal_name,
 {
     if (this->state_ != InstrumentState::valid) {
         std::cerr << "Instrumenter: wrong state for addImportFunction()!" << std::endl;
-        return;
+        return false;
     }
     BinaryenAddFunctionImport(this->module_, internal_name, external_module_name, external_base_name, params, results);
+    return true;
 }
 
-void Instrumenter::addImportGlobal(const char* internal_name,
+bool Instrumenter::addImportGlobal(const char* internal_name,
                                 const char* external_module_name,
                                 const char* external_base_name,
                                 BinaryenType type,
@@ -479,25 +481,27 @@ void Instrumenter::addImportGlobal(const char* internal_name,
 {
     if (this->state_ != InstrumentState::valid) {
         std::cerr << "Instrumenter: wrong state for addImportGlobal()!" << std::endl;
-        return;
+        return false;
     }
     BinaryenAddGlobalImport(this->module_, internal_name, external_module_name, external_base_name, type, if_mutable);
+    return true;
 }
 
-void Instrumenter::addImportMemory(const char* internal_name,
+bool Instrumenter::addImportMemory(const char* internal_name,
                                 const char* external_module_name,
                                 const char* external_base_name,
                                 bool if_shared) noexcept
 {
     if (this->state_ != InstrumentState::valid) {
         std::cerr << "Instrumenter: wrong state for addImportGlobal()!" << std::endl;
-        return;
+        return false;
     }
     if ((!this->config_.feature.hasMultiMemory()) && (this->module_->getMemoryOrNull(internal_name) == nullptr)) {
         std::cerr << "Instrumenter: cannot have multiple memories" << std::endl;
-        return;
+        return false;
     }
     BinaryenAddMemoryImport(this->module_, internal_name, external_module_name, external_base_name, if_shared);
+    return true;
 }
 
 wasm::Export* Instrumenter::addExport(wasm::ModuleItemKind kind, const char* internal_name,
