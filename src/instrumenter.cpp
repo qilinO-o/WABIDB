@@ -290,6 +290,13 @@ wasm::Memory* Instrumenter::getMemory(const char* name) noexcept {
         std::cerr << "Instrumenter: wrong state for getMemory()!" << std::endl;
         return nullptr;
     }
+    // get the default memory
+    if (name == nullptr) {
+        if (this->module_->memories.size() != 0) {
+            return this->module_->memories[0].get();
+        }
+        return nullptr;
+    }
     return this->module_->getMemoryOrNull(name);
 }
 

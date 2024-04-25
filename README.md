@@ -127,7 +127,7 @@ Export* addExport(ModuleItemKind kind,
 ```cpp
 Global*      getGlobal(const char* name);
 Function*    getFunction(const char* name);
-Memory*      getMemory(const char* name);
+Memory*      getMemory(const char* name = nullptr); // omit param for default memory
 DataSegment* getDateSegment(const char* name);
 Export*      getExport(const char* external_name);
 Importable*  getImport(ModuleItemKind kind, const char* base_name);

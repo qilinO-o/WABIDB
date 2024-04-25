@@ -143,7 +143,7 @@ public:
 
     wasm::Global* getGlobal(const char* name) noexcept;
     wasm::Function* getFunction(const char* name) noexcept;
-    wasm::Memory* getMemory(const char* name) noexcept;
+    wasm::Memory* getMemory(const char* name = nullptr) noexcept;
     wasm::DataSegment* getDateSegment(const char* name) noexcept;
     wasm::Export* getExport(const char* external_name) noexcept;
     // use base name for better WASI support
