@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 3.2)
 project(wasm_instrumenter)
 set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 aux_source_directory(${CMAKE_CURRENT_SOURCE_DIR}/src sources)
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/third_party/binaryen)
 foreach(SUFFIX "_DEBUG" "_RELEASE" "")
