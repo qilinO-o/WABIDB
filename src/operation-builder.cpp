@@ -1,4 +1,5 @@
 #include "operation-builder.hpp"
+#include <cassert>
 #include <pass.h>
 #include <random>
 
@@ -16,14 +17,25 @@ static std::string _random_prefix_generator() {
 static std::string _makeIRString(const std::vector<std::string>& pre_list, 
                         const std::vector<std::string>& post_list,
                         int func_num, 
-                        const std::string& random_prefix) 
+                        const std::string& random_prefix,
+                        const std::vector<wasm::Type> &local_types) 
 {
-    std::string funcs_str = "(func $" + random_prefix + std::to_string(func_num) + "_1\n";
+    std::string params_str = "";
+    if (local_types.size() > 0) {
+        params_str = " (param";
+        for (const auto t : local_types) {
+            assert(t.isBasic());
+            params_str += " ";
+            params_str += t.toString();
+        }
+        params_str += ")";
+    }
+    std::string funcs_str = "(func $" + random_prefix + std::to_string(func_num) + "_1" + params_str + "\n";
     for (const auto& instr_str : pre_list) {
         funcs_str += instr_str;
         funcs_str += "\n";
     }
-    funcs_str += "unreachable)\n(func $" + random_prefix + std::to_string(func_num) + "_2\n";
+    funcs_str += "unreachable)\n(func $" + random_prefix + std::to_string(func_num) + "_2" + params_str + "\n";
     for (const auto& instr_str : post_list) {
         funcs_str += instr_str;
         funcs_str += "\n";
@@ -43,7 +55,8 @@ static void _makeModuleString(std::string& module_str,
     module_str.pop_back();
     int op_num = 1;
     for (const auto& operation : operations) {
-        module_str += _makeIRString(operation.pre_instructions, operation.post_instructions, op_num, random_prefix);
+        module_str += _makeIRString(operation.pre_instructions, operation.post_instructions,
+                                    op_num, random_prefix, operation.local_types);
         op_num++;
     }
     module_str += ")";

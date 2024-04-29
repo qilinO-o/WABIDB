@@ -37,6 +37,9 @@ struct InstrumentOperation final {
     std::vector<ExpName> targets;
     std::vector<std::string> pre_instructions;
     std::vector<std::string> post_instructions;
+    // declare number and types of locals(index) used in upon vectors for validation
+    // must all be basic type (i32 i64 f32 f64 v128)
+    std::vector<wasm::Type> local_types = {};
 };
 
 // 1 to 1 related to config.operations
