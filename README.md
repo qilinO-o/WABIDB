@@ -18,8 +18,7 @@ Run all tests registered in [./test/CMakeLists.txt](./test/CMakeLists.txt):
 make test
 ```
 
-## Usage Tutorial
-### Instrumentation
+## Instrumentation
 `WABIDB` basically provides the ability to modify a wasm binary, which is also potentially useful for individual usage in other projects. You only need to import [`instrumenter.hpp`](./src/instrumenter.hpp) for basic [C++ APIs](#api).
 
 Note that these APIs **MUST** be called in a certain sequence described in section [Calling Sequence](#calling-sequence).
@@ -49,8 +48,19 @@ void routine() {
 ```
 More examples can be found in [test](./test/) directory.
 
-### Debug
-⚠️ Still under construction!
+## Debug
+### wabidb-inspect
+`wabidb-inspect` is an interactive debugger for WebAssembly binaries. It can be used for WebAssembly code and WASI applications as well. The tool is runtime-independent and relies on instrumentation technique.
+
+Current features include inspect locals and globals after a specific position of code.
+
+Basic usage:
+```shell
+$ wabidb-inspect example.wasm -cmd=wasmtime
+```
+
+Full [tutorial](./docs/wabidb-inspect.md) here.
+
 
 ## API
 ### General Instrumentation
