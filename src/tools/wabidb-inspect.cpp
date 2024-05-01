@@ -450,8 +450,11 @@ static void _add_functions(Instrumenter &instrumenter, CommonWasmBuilder &wasm_b
 }
 
 static void _add_exports(Instrumenter &instrumenter, std::string &memory_name) {
-    auto export_ret = instrumenter.addExport(wasm::ModuleItemKind::Memory, memory_name.c_str(), "memory");
-    assert(export_ret != nullptr);
+    auto export_ret = instrumenter.getExport("memory");
+    if (export_ret == nullptr) {
+        export_ret = instrumenter.addExport(wasm::ModuleItemKind::Memory, memory_name.c_str(), "memory");
+        assert(export_ret != nullptr);
+    }
 }
 
 static void _make_op(const InspectPrintInfo::PrintInfo &info, InstrumentOperation &op, const char cmd) {
