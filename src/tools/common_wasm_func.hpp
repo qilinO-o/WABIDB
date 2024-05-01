@@ -26,14 +26,20 @@ public:
         }
     }
     void updateWasiName(const std::string &wasi, const std::string &name) {
-        this->wasi_name_map_[wasi] = name;
-        for (auto &[_, v] : this->wasm_func_map_) {
-            size_t idx = 0;
-            while (((idx = v.find(wasi, idx)) != std::string::npos)) {
-                v.replace(idx, wasi.size(), name);
-                idx += name.size();
+        const auto original_name = this->wasi_name_map_.find(wasi);
+        if (original_name == this->wasi_name_map_.end()) {
+            this->wasi_name_map_.emplace(wasi, name);
+        } else {
+            for (auto &[_, v] : this->wasm_func_map_) {
+                size_t idx = 0;
+                while (((idx = v.find(original_name->second, idx)) != std::string::npos)) {
+                    v.replace(idx, original_name->second.size(), name);
+                    idx += name.size();
+                }
             }
+            this->wasi_name_map_[wasi] = name;
         }
+        
     }
 
 private:
