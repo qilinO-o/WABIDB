@@ -1,13 +1,6 @@
 #include "instrumenter.hpp"
 #include <cassert>
-#include <cmath>
-#include <cstddef>
-#include <cstdint>
-#include <cstdio>
-#include <cstdlib>
 #include <fstream>
-#include <memory>
-#include <string>
 #include <tools/tool-options.h>
 #include <tools/tool-utils.h>
 #include <unistd.h>
@@ -804,7 +797,25 @@ int main(int argc, const char* argv[]) {
             }
             case InspectState::end:
             {
-                if_end = true;
+                std::string next_cmd;
+                std::printf("(wabidb-inspect) continue(c) | quit(q)\n > ");
+                std::cin >> next_cmd;
+                if (next_cmd.size() > 0) {
+                    if (next_cmd[0] == 'c') {
+                        delete inspect_print_info;
+                        instrumenter.clear();
+                        iresult = instrumenter.setConfig(config);
+                        assert(iresult == InstrumentResult::success);
+                        state = InspectState::positioning;
+                    } else if (next_cmd[0] == 'q') {
+                        delete inspect_print_info;
+                        if_end = true;
+                    } else {
+                        state = InspectState::end;
+                    }
+                } else {
+                    state = InspectState::end;
+                }
                 break;
             }
             default: assert(false);

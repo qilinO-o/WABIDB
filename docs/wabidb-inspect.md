@@ -41,7 +41,6 @@ You need to specify the location and type of inspection.
 ```
 
 ### Examining inspection result
-
 `wabidb-inspect` instruments the binary based on previews choice and runs your `-cmd` argument. If the binary is interactive, just interact with it as you like. It will stop at the inspection point. Then inspection result shows up.
 
 ```shell
@@ -52,4 +51,14 @@ You need to specify the location and type of inspection.
  0: param name: $0 = i32(8)
  1: var   name: $1 = i32(1)
  2: var   name: $2 = i32(0)
+```
+
+### Continuing
+You can continue inspecting or quit the tool. Note that the binary is **NOT** continuously executed! Instead, it is instrumented and executed again.
+
+```shell
+(wabidb-inspect) continue(c) | quit(q)
+ > c
+(wabidb-inspect) Enter inspect position
+ > func:
 ```
