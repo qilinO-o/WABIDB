@@ -110,6 +110,7 @@ public:
         this->state_ = InstrumentState::idle;
         BinaryenModuleDispose(this->module_);
         this->module_ = BinaryenModuleCreate();
+        this->scopeClear();
     }
 
     // below: return nullptr denotes add or get failed

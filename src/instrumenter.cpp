@@ -208,7 +208,7 @@ InstrumentResult Instrumenter::instrument(const std::vector<InstrumentOperation>
     // iter through functions in the module
     auto func_visitor = [this, &operations, &added_instructions](wasm::Function* func){
         if (!this->scopeContains(func->name.toString())) return;
-        std::cout << "in function: " << func->name << " type: " << func->type.toString() << std::endl;
+        // std::cout << "in function: " << func->name << " type: " << func->type.toString() << std::endl;
     
         // stack ir check
         assert(func->stackIR != nullptr);
@@ -247,8 +247,10 @@ InstrumentResult Instrumenter::instrument(const std::vector<InstrumentOperation>
         wasm::ModuleUtils::iterDefinedFunctions(*(this->module_), func_visitor);
     } catch(...) {
         std::cerr << "Instrumenter: instrument() error while iterating functions!" << std::endl;
+        delete added_instructions;
         return InstrumentResult::instrument_error;
     }
+    delete added_instructions;
 
     // validate the module after modification
     if (!BinaryenModuleValidate(this->module_)) {
@@ -554,18 +556,21 @@ InstrumentResult Instrumenter::instrumentFunction(const InstrumentOperation &ope
     auto func = this->module_->getFunctionOrNull(name);
     if (func == nullptr) {
         std::cerr << "Instrumenter: function name: "<< name << " does not exists!" << std::endl;
+        delete added_instructions;
         return InstrumentResult::instrument_error;
     }
     if (func->imported()) {
         std::cerr << "Instrumenter: function name: "<< name << " is a import!" << std::endl;
+        delete added_instructions;
         return InstrumentResult::instrument_error;
     }
 
-    std::cout << "in function: " << func->name << " type: " << func->type.toString() << std::endl;
+    // std::cout << "in function: " << func->name << " type: " << func->type.toString() << std::endl;
     // stack ir check
     assert(func->stackIR != nullptr);
     if ((pos < 0) || (pos > func->stackIR->size())) {
         std::cerr << "Instrumenter: instrumentFunction() pos invalid!" << std::endl;
+        delete added_instructions;
         return InstrumentResult::instrument_error;
     }
 
@@ -580,6 +585,8 @@ InstrumentResult Instrumenter::instrumentFunction(const InstrumentOperation &ope
     // write back the modified stack ir list to the func
     auto new_stack_ir_vec = _stack_ir_list2vec(stack_ir_list);
     func->stackIR = std::make_unique<wasm::StackIR>(new_stack_ir_vec);
+
+    delete added_instructions;
 
     // validate the module after modification
     if (!BinaryenModuleValidate(this->module_)) {
