@@ -1,6 +1,7 @@
 #include "instrumenter.hpp"
 #include <cassert>
 #include <fstream>
+#include <ios>
 #include <tools/tool-options.h>
 #include <tools/tool-utils.h>
 #include <unistd.h>
@@ -24,7 +25,7 @@ using v128_t = struct{
 
 std::ostream& operator<<(std::ostream& o, v128_t &t) {
     for (auto i = 0; i < 16; i++) {
-        o << std::hex << t.data[i] << " ";
+        o << std::hex << std::showbase << (int)t.data[i] << std::noshowbase << std::dec << ((i < 15) ? " " : "");
     }
     return o;
 }
@@ -382,11 +383,7 @@ static void _add_memory(Instrumenter &instrumenter, std::string &memory_name) {
         memory_ret = instrumenter.addMemory("mem", false, 0, 1);
         assert(memory_ret != nullptr);
     } else {
-        if (memory_ret->hasExplicitName) {
-            memory_name = memory_ret->name.toString();
-        } else {
-            memory_ret->setExplicitName("mem");
-        }
+        memory_name = memory_ret->name.toString();
         if ((memory_ret->max - memory_ret->initial) <= 0) {
             memory_ret->max = std::min(static_cast<uint64_t>(memory_ret->max + 1), static_cast<uint64_t>(wasm::Memory::kMaxSize32));
             assert((memory_ret->max - memory_ret->initial) > 0);
