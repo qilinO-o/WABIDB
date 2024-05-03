@@ -179,6 +179,9 @@ public:
     void scopeClear() {
         this->function_scope_.clear();
     }
+    const std::set<std::string>& getScope() const {
+        return function_scope_;
+    }
 
     // tool api
     wasm::Module* getModule() {
