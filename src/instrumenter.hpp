@@ -2,9 +2,13 @@
 #define instrumenter_h
 
 #include "binaryen-c.h"
+#include <cstddef>
+#include <memory>
+#include <pass.h>
 #include <wasm.h>
 #include <wasm-stack.h>
 #include <vector>
+#include <passes/passes.h>
 
 namespace wasm_instrument {
 
@@ -159,9 +163,7 @@ public:
         if (!if_stack_ir) {
             std::cout << *(this->module_);
         } else {
-            wasm::PassRunner runner(this->module_);
-            runner.add("print-stack-ir");
-            runner.run();
+            this->_out_stackir_module(std::cout);
         }
     }
 
@@ -209,6 +211,22 @@ private:
 
     InstrumentResult _read_file() noexcept;
     InstrumentResult _write_file() noexcept;
+
+    std::ostream& _out_stackir_module(std::ostream &o) {
+        bool is_cout = (o.rdbuf() == std::cout.rdbuf());
+        std::streambuf* old_streambuf = nullptr;
+        if (!is_cout) {
+            old_streambuf = std::cout.rdbuf();
+            std::cout.rdbuf(o.rdbuf());
+        }
+        wasm::PassRunner runner(this->module_);
+        runner.add(std::unique_ptr<wasm::Pass>(wasm::createPrintStackIRPass()));
+        runner.run();
+        if (!is_cout) {
+            std::cout.rdbuf(old_streambuf);
+        }
+        return o;
+    }
 };
 
 std::string InstrumentResult2str(InstrumentResult result);
