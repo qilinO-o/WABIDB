@@ -83,16 +83,16 @@ AddedInstructions* OperationBuilder::makeOperations(wasm::Module* &mallocator, c
     _makeModuleString(module_str, operations, random_prefix);
 
     auto feature = mallocator->features;
-    BinaryenModuleDispose(mallocator);
-    mallocator = BinaryenModuleCreate();
+    delete mallocator;
+    mallocator = new wasm::Module();
     mallocator->features.set(feature);
     
     if (!_readTextData(module_str, *(mallocator))) {
         std::cerr << "OperationBuilder: makeOperations() read text error!" << std::endl;
         delete added_instructions;
         Colors::setEnabled(is_color);
-        BinaryenModuleDispose(mallocator);
-        mallocator = BinaryenModuleCreate();
+        delete mallocator;
+        mallocator = new wasm::Module();
         if (!_readTextData(backup_str, *(mallocator))) {
             std::cerr << "OperationBuilder: makeOperations() cannot recover module! Further operations should end!" << std::endl;
         }

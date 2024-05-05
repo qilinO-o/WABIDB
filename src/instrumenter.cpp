@@ -7,6 +7,7 @@
 #include <ir/module-utils.h>
 #include <support/colors.h>
 #include <parser/wat-parser.h>
+#include <wasm.h>
 
 namespace wasm_instrument {
 
@@ -412,14 +413,14 @@ bool Instrumenter::addFunctions(const std::vector<std::string> &names, const std
     }
     module_str += ")";
     auto feature = this->module_->features;
-    BinaryenModuleDispose(this->module_);
-    this->module_ = BinaryenModuleCreate();
+    delete this->module_;
+    this->module_ = new wasm::Module();
     this->module_->features.set(feature);
     if (!_readTextData(module_str, *(this->module_))) {
         std::cerr << "Instrumenter: addFunctions() read text error!" << std::endl;
         Colors::setEnabled(is_color);
-        BinaryenModuleDispose(this->module_);
-        this->module_ = BinaryenModuleCreate();
+        delete this->module_;
+        this->module_ = new wasm::Module();
         if (!_readTextData(backup_str, *(this->module_))) {
             std::cerr << "Instrumenter: addFunctions() cannot recover module! Further operations should end!" << std::endl;
         }

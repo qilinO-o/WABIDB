@@ -85,14 +85,14 @@ enum InstrumentState {
 class Instrumenter final {
 public:
     Instrumenter() noexcept {
-        this->module_ = BinaryenModuleCreate();
+        this->module_ = new wasm::Module();
     }
     Instrumenter(const Instrumenter &a) = delete;
     Instrumenter(Instrumenter &&a) = delete;
     Instrumenter &operator=(const Instrumenter &) = delete;
     Instrumenter &operator=(Instrumenter &&) = delete;
     ~Instrumenter() noexcept {
-        BinaryenModuleDispose(this->module_);
+        delete this->module_;
     }
 
     // set config, read module and make stack ir emitted
@@ -108,8 +108,8 @@ public:
     // instrumenter can be re-used after call clear()
     void clear() {
         this->state_ = InstrumentState::idle;
-        BinaryenModuleDispose(this->module_);
-        this->module_ = BinaryenModuleCreate();
+        delete this->module_;
+        this->module_ = new wasm::Module();
         this->scopeClear();
     }
 
@@ -157,9 +157,11 @@ public:
     // print module
     void print(bool if_stack_ir = false) {
         if (!if_stack_ir) {
-            BinaryenModulePrint(this->module_);
+            std::cout << *(this->module_);
         } else {
-            BinaryenModulePrintStackIR(this->module_, false);
+            wasm::PassRunner runner(this->module_);
+            runner.add("print-stack-ir");
+            runner.run();
         }
     }
 
