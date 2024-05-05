@@ -122,39 +122,6 @@ static wasm::StackIR _stack_ir_list2vec(const std::list<wasm::StackInst*> &stack
     return stack_ir_vec;
 }
 
-static void _print_stack_ir(const std::list<wasm::StackInst*> stack_ir_list, bool verbose = false) {
-    auto stack_ir_op2str = [](wasm::StackInst::Op op){
-        std::string op_map[] = {
-            "Basic",
-            "BlockBegin",
-            "BlockEnd",
-            "IfBegin",
-            "IfElse",
-            "IfEnd",
-            "LoopBegin",
-            "LoopEnd",
-            "TryBegin",
-            "Catch",
-            "CatchAll",
-            "Delegate",
-            "TryEnd",
-            "TryTableBegin",
-            "TryTableEnd"
-        };
-        return op_map[int(op)];
-    };
-    for (auto i = stack_ir_list.begin(); i != stack_ir_list.end(); i++) {
-        auto cur_stack_inst = *i;
-        auto cur_exp = cur_stack_inst->origin;
-        if (!verbose) {
-            std::printf("op: %s, exp: %s\n", stack_ir_op2str(cur_stack_inst->op).c_str(), wasm::getExpressionName(cur_exp));
-        } else {
-            std::printf("op: %s, exp: ", stack_ir_op2str(cur_stack_inst->op).c_str());
-            cur_exp->dump();
-        }
-    }
-}
-
 InstrumentResult Instrumenter::setConfig(const InstrumentConfig &config) noexcept {
     if (this->state_ != InstrumentState::idle) {
         std::cerr << "Instrumenter: wrong state for setConfig()!" << std::endl;
