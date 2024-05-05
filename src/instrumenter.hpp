@@ -84,6 +84,8 @@ enum InstrumentState {
     written
 };
 
+std::ostream& _out_stackir_module(std::ostream &o, wasm::Module *module);
+
 // new Instrumenter with config and run with instrument()
 // also provide other useful utilities including create wasm classes(globals, imports, expressions) etc.
 class Instrumenter final {
@@ -163,7 +165,7 @@ public:
         if (!if_stack_ir) {
             std::cout << *(this->module_);
         } else {
-            this->_out_stackir_module(std::cout);
+            _out_stackir_module(std::cout, this->module_);
         }
     }
 
@@ -211,22 +213,6 @@ private:
 
     InstrumentResult _read_file() noexcept;
     InstrumentResult _write_file() noexcept;
-
-    std::ostream& _out_stackir_module(std::ostream &o) {
-        bool is_cout = (o.rdbuf() == std::cout.rdbuf());
-        std::streambuf* old_streambuf = nullptr;
-        if (!is_cout) {
-            old_streambuf = std::cout.rdbuf();
-            std::cout.rdbuf(o.rdbuf());
-        }
-        wasm::PassRunner runner(this->module_);
-        runner.add(std::unique_ptr<wasm::Pass>(wasm::createPrintStackIRPass()));
-        runner.run();
-        if (!is_cout) {
-            std::cout.rdbuf(old_streambuf);
-        }
-        return o;
-    }
 };
 
 std::string InstrumentResult2str(InstrumentResult result);

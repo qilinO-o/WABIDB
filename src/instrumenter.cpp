@@ -36,6 +36,22 @@ bool _readTextData(const std::string& input, wasm::Module& wasm) {
     return true;
 }
 
+std::ostream& _out_stackir_module(std::ostream &o, wasm::Module *module) {
+    bool is_cout = (o.rdbuf() == std::cout.rdbuf());
+    std::streambuf* old_streambuf = nullptr;
+    if (!is_cout) {
+        old_streambuf = std::cout.rdbuf();
+        std::cout.rdbuf(o.rdbuf());
+    }
+    wasm::PassRunner runner(module);
+    runner.add(std::unique_ptr<wasm::Pass>(wasm::createPrintStackIRPass()));
+    runner.run();
+    if (!is_cout) {
+        std::cout.rdbuf(old_streambuf);
+    }
+    return o;
+}
+
 InstrumentResult Instrumenter::_read_file() noexcept {
     this->module_->features.enable(this->config_.feature);
 
@@ -366,8 +382,7 @@ bool Instrumenter::addFunctions(const std::vector<std::string> &names, const std
     std::stringstream mstream;
     auto is_color = Colors::isEnabled();
     Colors::setEnabled(false);
-    // also do stack ir pass on the module
-    wasm::printStackIR(mstream, this->module_, true);
+    _out_stackir_module(mstream, this->module_);
     std::string module_str = mstream.str();
     std::string backup_str = module_str;
     while (module_str.back() != ')') 

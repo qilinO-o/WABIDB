@@ -1,4 +1,5 @@
 #include "operation-builder.hpp"
+#include "instrumenter.hpp"
 #include <cassert>
 #include <pass.h>
 #include <random>
@@ -76,7 +77,7 @@ AddedInstructions* OperationBuilder::makeOperations(wasm::Module* &mallocator, c
     Colors::setEnabled(false);
     // also do stack ir pass on the module
     mallocator->typeNames.clear();
-    wasm::printStackIR(mstream, mallocator, true);
+    _out_stackir_module(mstream, mallocator);
     std::string module_str = mstream.str();
     std::string backup_str = module_str;
 
