@@ -23,7 +23,7 @@ make test
 
 Note that these APIs **MUST** be called in a certain sequence described in section [Calling Sequence](#calling-sequence).
 
-The `routine()` method below covers basic usage of the APIs:
+The `routine()` method below gives a basic usage of the APIs:
 ```cpp
 void routine() {
     InstrumentConfig config;
@@ -63,12 +63,12 @@ Full [tutorial](./docs/wabidb-inspect.md) here.
 
 
 ## API
-### General Instrumentation
-The config of general instrumentation is designed for a match-and-insert semantics. It finds expressions in functions that match any target of a target set, and insert certain instructions before and after the specific expressions.
+**Important:** All inserted instructions should be carefully designed to maintain a still balanced stack after insertions.
+
+### Match-and-Insert Instrumentation
+The instrumentation is designed for a match-and-insert semantics. It finds expressions in functions that match any target of a target set, and insert certain instructions before and after the matching point.
 
 Note that these targets **MUST** be orthogonal(Or we say the target in front is matched first). 
-
-Inserted instructions should be carefully designed to maintain a still balanced stack after insertions.
 
 ```cpp
 InstrumentResult instrument(const vector<InstrumentOperation> &operations);
@@ -93,6 +93,23 @@ struct InstrumentOperation {
 };
 ```
 > See Op and Type definitions in [`wasm.h`](https://github.com/WebAssembly/binaryen/blob/main/src/wasm.h) and [`binaryen-c.h`](https://github.com/WebAssembly/binaryen/blob/main/src/binaryen-c.h) of [`Binaryen`](https://github.com/WebAssembly/binaryen).
+
+### Position-Insert Instrumentattion
+Insert operation.post_instructions after the line of pos of the named function. Instructions are indexed from 1 and pos = 0 equals to insert at the beginning of the function.
+```cpp
+InstrumentResult instrumentFunction(const InstrumentOperation &operation,
+                                    const char* name,
+                                    size_t pos);
+```
+
+### General Iteration
+Above apis may not cover all instrumentation scenarios, so `WABIDB` provides function-level and instruction-level iteration template. Any customized instrumentation can be implemented upon them.
+```cpp
+// The visitor provided should have signature void(Function*)
+template<typename T> inline void iterDefinedFunctions(T visitor);
+// The visitor provided should have signature void(std::vector<wasm::StackInst *>::iterator)
+template<typename T> inline void iterInstructions(wasm::Function* func, T visitor);
+```
 
 ### Add Declaration
 `nullptr` or `false` to indicate failure.

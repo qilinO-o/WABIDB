@@ -202,6 +202,27 @@ public:
     InstrumentResult instrumentFunction(const InstrumentOperation &operation,
                                         const char* name,
                                         size_t pos) noexcept;
+
+    // general iteration methods
+    // no state check and validation check, so be careful!
+    // The visitor provided should have signature void(Function*)
+    template<typename T>
+    inline void iterDefinedFunctions(T visitor) {
+        for (auto &func : this->module_->functions) {
+            if (!func->imported()) {
+                visitor(func.get());
+            }
+        }
+    }
+
+    // The visitor provided should have signature void(std::vector<wasm::StackInst *>::iterator)
+    template<typename T>
+    inline void iterInstructions(wasm::Function* func, T visitor) {
+        assert(func->stackIR != nullptr);
+        for (auto iter = func->stackIR->begin(); iter != func->stackIR->end(); iter++)  {
+            visitor(iter);
+        }
+    }
     
 private:
     InstrumentConfig config_;

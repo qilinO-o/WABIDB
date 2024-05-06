@@ -1,10 +1,6 @@
 #include "instrumenter.hpp"
 #include "operation-builder.hpp"
-#include <fstream>
-#include <assert.h>
-#include <list>
 #include <wasm-io.h>
-#include <ir/module-utils.h>
 #include <support/colors.h>
 #include <parser/wat-parser.h>
 #include <wasm.h>
@@ -228,7 +224,7 @@ InstrumentResult Instrumenter::instrument(const std::vector<InstrumentOperation>
         func->stackIR = std::make_unique<wasm::StackIR>(new_stack_ir_vec);
     };
     try {
-        wasm::ModuleUtils::iterDefinedFunctions(*(this->module_), func_visitor);
+        this->iterDefinedFunctions(func_visitor);
     } catch(...) {
         std::cerr << "Instrumenter: instrument() error while iterating functions!" << std::endl;
         delete added_instructions;
