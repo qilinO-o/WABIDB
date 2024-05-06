@@ -113,7 +113,6 @@ InstrumentResult Instrumenter::instrument(const std::vector<InstrumentOperation>
         
         for (auto i = stack_ir_list.begin(); i != stack_ir_list.end(); i++) {
             auto cur_stack_inst = *i;
-            auto cur_exp = cur_stack_inst->origin;
 
             // perform each operation on the current expression
             // targets of all operations should be *Orthogonal* !
@@ -138,7 +137,7 @@ InstrumentResult Instrumenter::instrument(const std::vector<InstrumentOperation>
         func->stackIR = std::make_unique<wasm::StackIR>(new_stack_ir_vec);
     };
     try {
-        this->iterDefinedFunctions(func_visitor);
+        iterDefinedFunctions(this->module_, func_visitor);
     } catch(...) {
         std::cerr << "Instrumenter: instrument() error while iterating functions!" << std::endl;
         delete added_instructions;

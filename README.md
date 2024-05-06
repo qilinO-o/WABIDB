@@ -104,10 +104,12 @@ InstrumentResult instrumentFunction(const InstrumentOperation &operation,
 
 ### General Iteration
 Above apis may not cover all instrumentation scenarios, so `WABIDB` provides function-level and instruction-level iteration template. Any customized instrumentation can be implemented upon them.
+
+These apis are defined in [`instr-utils.hpp`](/src/instr-utils.hpp).
 ```cpp
 // The visitor provided should have signature void(Function*)
-template<typename T> inline void iterDefinedFunctions(T visitor);
-// The visitor provided should have signature void(std::vector<wasm::StackInst *>::iterator)
+template<typename T> inline void iterDefinedFunctions(wasm::Module* m, T visitor);
+// The visitor provided should have signature void(std::list<wasm::StackInst *>::iterator)
 template<typename T> inline void iterInstructions(wasm::Function* func, T visitor);
 ```
 

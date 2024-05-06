@@ -66,6 +66,30 @@ std::list<wasm::StackInst*> _stack_ir_vec2list(const wasm::StackIR &stack_ir);
 
 wasm::StackIR _stack_ir_list2vec(const std::list<wasm::StackInst*> &stack_ir);
 
+// general iteration methods
+// no state check and validation check, so be careful!
+// The visitor provided should have signature void(Function*)
+template<typename T>
+inline void iterDefinedFunctions(wasm::Module* m, T visitor) {
+    for (auto &func : m->functions) {
+        if (!func->imported()) {
+            visitor(func.get());
+        }
+    }
+}
+
+// The visitor provided should have signature void(std::list<wasm::StackInst *>::iterator)
+template<typename T>
+inline void iterInstructions(wasm::Function* func, T visitor) {
+    assert(func->stackIR != nullptr);
+    std::list<wasm::StackInst*> stack_ir_list = _stack_ir_vec2list(*(func->stackIR.get()));
+    for (auto iter = stack_ir_list.begin(); iter != stack_ir_list.end(); iter++)  {
+        visitor(iter);
+    }
+    auto new_stack_ir_vec = _stack_ir_list2vec(stack_ir_list);
+    func->stackIR = std::make_unique<wasm::StackIR>(new_stack_ir_vec);
+}
+
 }
 
 #endif
