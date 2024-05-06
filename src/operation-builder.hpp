@@ -1,7 +1,7 @@
 #ifndef operation_builder_h
 #define operation_builder_h
 
-#include "instrumenter.hpp"
+#include "instr-utils.hpp"
 
 namespace wasm_instrument {
 

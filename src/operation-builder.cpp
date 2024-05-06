@@ -1,7 +1,4 @@
 #include "operation-builder.hpp"
-#include "instrumenter.hpp"
-#include <cassert>
-#include <pass.h>
 #include <random>
 
 namespace wasm_instrument {
