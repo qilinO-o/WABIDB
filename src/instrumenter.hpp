@@ -136,7 +136,7 @@ public:
     }
 
     // tool api
-    wasm::Module* getModule() {
+    wasm::Module*& getModule() {
         return this->module_;
     }
 
