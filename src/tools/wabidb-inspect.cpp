@@ -7,6 +7,7 @@
 #include <unistd.h>
 #include <wasm-type.h>
 #include "common_wasm_func.hpp"
+#include "operation-builder.hpp"
 using namespace wasm_instrument;
 
 enum InspectState {
@@ -52,6 +53,7 @@ public:
         None = 0,
         local,
         global,
+        backtrace,
     };
     class PrintInfo {
         public:
@@ -67,6 +69,10 @@ public:
     class GlobalPrintInfo: public PrintInfo {
         public:
     };
+    class BacktracePrintInfo: public PrintInfo {
+        public:
+        std::map<std::string, size_t> funcname_map;
+    };
     PrintInfo* info;
     Type type;
     InspectPrintInfo() {
@@ -78,7 +84,9 @@ public:
             info = new LocalPrintInfo;
         } else if (_t == Type::global) {
             info = new GlobalPrintInfo;
-        } else assert(false);
+        } else if (_t == Type::backtrace) {
+            info = new BacktracePrintInfo;
+        }else assert(false);
     }
     void print() const {
         if (this->type == Type::local) {
@@ -101,6 +109,9 @@ public:
                 std::printf("%ld: name: %s ", i, ginfo->names[i].c_str());
                 std::cout << ginfo->types[i] << std::endl;
             }
+        } else if (this->type == Type::backtrace) {
+            auto binfo = dynamic_cast<BacktracePrintInfo*>(this->info);
+            std::printf("backtrace:\n");
         } else {
             std::printf("None\n");
         }
@@ -129,6 +140,26 @@ public:
                 std::cout << ginfo->types[i];
                 _print_typed_number(ifile, ginfo->types[i]);
             }
+        } else if (this->type == Type::backtrace) {
+            auto binfo = dynamic_cast<BacktracePrintInfo*>(this->info);
+            std::printf("(wabidb-inspect) Backtrace:\n");
+            int32_t number_le;
+            std::vector<int> backtrace_idx;
+            while(!ifile.eof()) {
+                ifile.read((char *)(&number_le), 4);
+                if (ifile.eof()) break;
+                int32_t number_be = swap_endian(number_le);
+                assert(number_be != -2);
+                if (number_be != -1) {
+                    backtrace_idx.emplace_back(number_be);
+                } else {
+                    backtrace_idx.pop_back();
+                }
+            }
+            for (int i = backtrace_idx.size() - 1; i >= 0; i--) {
+                std::printf(" %ld: $%s\n", backtrace_idx.size() - 1 - i, binfo->names[backtrace_idx[i]].c_str());
+            }
+            std::printf(" %ld: $%s\n", backtrace_idx.size(), "_start (or what runtime directly call)");
         } else {
             std::printf("None\n");
         }
@@ -454,7 +485,7 @@ static void _add_exports(Instrumenter &instrumenter, std::string &memory_name) {
     }
 }
 
-static void _make_op(const InspectPrintInfo::PrintInfo &info, InstrumentOperation &op, const char cmd) {
+static void _make_variable_op(const InspectPrintInfo::PrintInfo &info, InstrumentOperation &op, const char cmd) {
     std::string item;
     if (cmd == 'l') {
         item = "local";
@@ -464,10 +495,12 @@ static void _make_op(const InspectPrintInfo::PrintInfo &info, InstrumentOperatio
     } else assert(false);
     for (auto i = 0; i < info.num; i++) {
         if (info.types[i] == wasm::Type::none) continue;
-        op.post_instructions.emplace_back("global.get $__instr_iobuf_addr");
-        op.post_instructions.emplace_back("global.get $__instr_iobuf_len");
-        op.post_instructions.emplace_back("i32.add");
-        op.post_instructions.emplace_back(item + ".get " + std::to_string(i));
+        op.post_instructions.insert(op.post_instructions.end(), {
+            "global.get $__instr_iobuf_addr",
+            "global.get $__instr_iobuf_len",
+            "i32.add",
+            item + ".get " + std::to_string(i),
+        });
         if (info.types[i] == wasm::Type::i32) {
             op.post_instructions.emplace_back("i32.store");
             op.post_instructions.emplace_back("i32.const 4");
@@ -484,76 +517,158 @@ static void _make_op(const InspectPrintInfo::PrintInfo &info, InstrumentOperatio
             op.post_instructions.emplace_back("v128.store");
             op.post_instructions.emplace_back("i32.const 16");
         }
-        op.post_instructions.emplace_back("global.get $__instr_iobuf_len");
-        op.post_instructions.emplace_back("i32.add");
-        op.post_instructions.emplace_back("global.set $__instr_iobuf_len");
+        op.post_instructions.insert(op.post_instructions.end(), {
+            "global.get $__instr_iobuf_len",
+            "i32.add",
+            "global.set $__instr_iobuf_len",
+        });
     }
 }
 
 static void _make_write_op(InstrumentOperation &op, const CommonWasmBuilder &builder) {
-    // construct ciovec
-    op.post_instructions.emplace_back("global.get $__instr_base_addr");
-    op.post_instructions.emplace_back("i32.const 2048");
-    op.post_instructions.emplace_back("i32.add");
-    op.post_instructions.emplace_back("global.get $__instr_iobuf_addr");
-    op.post_instructions.emplace_back("i32.store");
-    op.post_instructions.emplace_back("global.get $__instr_base_addr");
-    op.post_instructions.emplace_back("i32.const 2052");
-    op.post_instructions.emplace_back("i32.add");
-    op.post_instructions.emplace_back("global.get $__instr_iobuf_len");
-    op.post_instructions.emplace_back("i32.store");
+    op.post_instructions.insert(op.post_instructions.end(), 
+    {
+        // construct ciovec
+        "global.get $__instr_base_addr",
+        "i32.const 2048",
+        "i32.add",
+        "global.get $__instr_iobuf_addr",
+        "i32.store",
+        "global.get $__instr_base_addr",
+        "i32.const 2052",
+        "i32.add",
+        "global.get $__instr_iobuf_len",
+        "i32.store",
+        // construct write part
+        "global.get $__instr_base_addr",
+        "global.get $__instr_wasi_ret_addr",
+        "call $__instr_get_cwd_fd",
+        "i32.const 0",
+        "i32.ne",
+        "if",
+        "i32.const 12",
+        "call $" + builder.getWasiName("proc_exit").value(),
+        "end",
 
-    // construct write part
-    op.post_instructions.emplace_back("global.get $__instr_base_addr");
-    op.post_instructions.emplace_back("global.get $__instr_wasi_ret_addr");
-    op.post_instructions.emplace_back("call $__instr_get_cwd_fd");
-    op.post_instructions.emplace_back("i32.const 0");
-    op.post_instructions.emplace_back("i32.ne");
-    op.post_instructions.emplace_back("if");
-    op.post_instructions.emplace_back("i32.const 12");
-    op.post_instructions.emplace_back("call $" + builder.getWasiName("proc_exit").value());
-    op.post_instructions.emplace_back("end");
+        "global.get $__instr_wasi_ret_addr",
+        "i32.load",
+        "global.get $__instr_base_addr",
+        "i32.const 1024",
+        "i32.add",
+        "i32.const 18",
+        "global.get $__instr_wasi_ret_addr",
+        "call $__instr_fopen_rw",
+        "i32.const 0",
+        "i32.ne",
+        "if",
+        "i32.const 12",
+        "call $" + builder.getWasiName("proc_exit").value(),
+        "end",
 
-    op.post_instructions.emplace_back("global.get $__instr_wasi_ret_addr");
-    op.post_instructions.emplace_back("i32.load");
-    op.post_instructions.emplace_back("global.get $__instr_base_addr");
-    op.post_instructions.emplace_back("i32.const 1024");
-    op.post_instructions.emplace_back("i32.add");
-    op.post_instructions.emplace_back("i32.const 18");
-    op.post_instructions.emplace_back("global.get $__instr_wasi_ret_addr");
-    op.post_instructions.emplace_back("call $__instr_fopen_rw");
-    op.post_instructions.emplace_back("i32.const 0");
-    op.post_instructions.emplace_back("i32.ne");
-    op.post_instructions.emplace_back("if");
-    op.post_instructions.emplace_back("i32.const 12");
-    op.post_instructions.emplace_back("call $" + builder.getWasiName("proc_exit").value());
-    op.post_instructions.emplace_back("end");
+        "global.get $__instr_wasi_ret_addr",
+        "i32.load",
+        "global.set $__instr_fd",
+        "global.get $__instr_fd",
+        "global.get $__instr_base_addr",
+        "i32.const 2048",
+        "i32.add",
+        "i32.const 1",
+        "global.get $__instr_wasi_ret_addr",
+        "call $" + builder.getWasiName("fd_write").value(),
+        "i32.const 0",
+        "i32.ne",
+        "if",
+        "i32.const 12",
+        "call $" + builder.getWasiName("proc_exit").value(),
+        "end",
 
-    op.post_instructions.emplace_back("global.get $__instr_wasi_ret_addr");
-    op.post_instructions.emplace_back("i32.load");
-    op.post_instructions.emplace_back("global.set $__instr_fd");
-    op.post_instructions.emplace_back("global.get $__instr_fd");
-    op.post_instructions.emplace_back("global.get $__instr_base_addr");
-    op.post_instructions.emplace_back("i32.const 2048");
-    op.post_instructions.emplace_back("i32.add");
-    op.post_instructions.emplace_back("i32.const 1");
-    op.post_instructions.emplace_back("global.get $__instr_wasi_ret_addr");
-    op.post_instructions.emplace_back("call $" + builder.getWasiName("fd_write").value());
-    op.post_instructions.emplace_back("i32.const 0");
-    op.post_instructions.emplace_back("i32.ne");
-    op.post_instructions.emplace_back("if");
-    op.post_instructions.emplace_back("i32.const 12");
-    op.post_instructions.emplace_back("call $" + builder.getWasiName("proc_exit").value());
-    op.post_instructions.emplace_back("end");
+        "global.get $__instr_fd",
+        "call $" + builder.getWasiName("fd_close").value(),
+        "i32.const 0",
+        "i32.ne",
+        "if",
+        "i32.const 12",
+        "call $" + builder.getWasiName("proc_exit").value(),
+        "end",
+    });
+}
 
-    op.post_instructions.emplace_back("global.get $__instr_fd");
-    op.post_instructions.emplace_back("call $" + builder.getWasiName("fd_close").value());
-    op.post_instructions.emplace_back("i32.const 0");
-    op.post_instructions.emplace_back("i32.ne");
-    op.post_instructions.emplace_back("if");
-    op.post_instructions.emplace_back("i32.const 12");
-    op.post_instructions.emplace_back("call $" + builder.getWasiName("proc_exit").value());
-    op.post_instructions.emplace_back("end");
+static void _make_bt_instrument(Instrumenter &instrumenter, 
+                                const InspectPrintInfo::BacktracePrintInfo &info, 
+                                const std::string &inspect_func_name,
+                                const size_t inspect_line_num) {
+    InstrumentOperation hook_call;
+    hook_call.pre_instructions = {
+        "global.get $__instr_iobuf_addr",
+        "global.get $__instr_iobuf_len",
+        "i32.add",
+        "i32.const -1", // to be modified
+        "i32.store",
+        "i32.const 4",
+        "global.get $__instr_iobuf_len",
+        "i32.add",
+        "global.set $__instr_iobuf_len",
+    };
+    try {
+        bool if_in_inspect_func = false;
+        size_t line_num = 0;
+        OperationBuilder builder;
+        auto added_instructions = builder.makeOperations(instrumenter.getModule(), {hook_call});
+        auto hook_insts = added_instructions->vec[0].pre_instructions;
+
+        auto inst_vistor = [&hook_insts, &info, &instrumenter, &if_in_inspect_func, &line_num, &inspect_line_num]
+                                    (std::list<wasm::StackInst*> &l, std::list<wasm::StackInst*>::iterator &iter) {
+            if (if_in_inspect_func) {
+                line_num++;
+                if (line_num > inspect_line_num) return;
+            }
+            auto inst = *iter;
+            if (inst->origin->_id == wasm::Expression::Id::CallId) {
+                auto call = inst->origin->dynCast<wasm::Call>();
+                auto idx_iter = info.funcname_map.find(call->target.toString());
+                wasm::StackInst* const_neg_one = hook_insts[3];
+                if (idx_iter != info.funcname_map.end()) {
+                    hook_insts[3] = _make_stack_inst(wasm::StackInst::Basic, 
+                                                    BinaryenConst(instrumenter.getModule(), 
+                                                                BinaryenLiteralInt32((int32_t)(idx_iter->second))),
+                                                    instrumenter.getModule());
+                } else {
+                    hook_insts[3] = _make_stack_inst(wasm::StackInst::Basic, 
+                                                    BinaryenConst(instrumenter.getModule(), 
+                                                                BinaryenLiteralInt32((int32_t)(-2))),
+                                                    instrumenter.getModule());
+                }
+                l.splice(iter, _stack_ir_vec2list(hook_insts));
+                hook_insts[3] = const_neg_one;
+            } else {
+                return;
+            }
+            std::advance(iter, 1);
+            l.splice(iter, _stack_ir_vec2list(hook_insts));
+            std::advance(iter, -1);
+        };
+        
+        auto func_visitor = [&inst_vistor, &instrumenter, &inspect_func_name, &if_in_inspect_func](wasm::Function* func) {
+            if (!instrumenter.scopeContains(func->name.toString())) return;
+            if (func->name.toString() == inspect_func_name) if_in_inspect_func = true;
+            iterInstructions(func, inst_vistor);
+            if_in_inspect_func = false;
+        };
+        
+        iterDefinedFunctions(instrumenter.getModule(), func_visitor);
+    } catch(...) {
+        assert(false);
+    }
+
+    auto start_func = instrumenter.getStartFunction();
+    if (start_func != nullptr) {
+        InstrumentOperation temp;
+        temp.post_instructions.emplace_back("call $__instr_load_data");
+        InstrumentResult iresult = instrumenter.instrumentFunction(temp, start_func->name.toString().c_str(), 0);
+        assert(iresult == InstrumentResult::success);
+    } else {
+        instrumenter.getModule()->addStart("__instr_load_data");
+    }
 }
 
 static void do_pre_instrument(Instrumenter &instrumenter,
@@ -574,13 +689,22 @@ static void do_pre_instrument(Instrumenter &instrumenter,
     _add_exports(instrumenter, memory_name);
 
     InstrumentOperation op;
-    op.post_instructions.emplace_back("call $__instr_load_data");
-    _make_op(*(print_info.info), op, inspect_command[0]);
+    if (inspect_command == "l" || inspect_command == "g") {
+        op.post_instructions.emplace_back("call $__instr_load_data");
+        _make_variable_op(*(print_info.info), op, inspect_command[0]);
+    }
     _make_write_op(op, wasm_builder);
     op.post_instructions.emplace_back("i32.const 10");
     op.post_instructions.emplace_back("call $" + wasm_builder.getWasiName("proc_exit").value());
     InstrumentResult iresult = instrumenter.instrumentFunction(op, inspect_func_name.c_str(), inspect_line_num);
     assert(iresult == InstrumentResult::success);
+    
+    if (inspect_command == "bt") {
+        _make_bt_instrument(instrumenter,
+                            *dynamic_cast<InspectPrintInfo::BacktracePrintInfo*>(print_info.info),
+                            inspect_func_name, inspect_line_num);
+    }
+    assert(BinaryenModuleValidate(instrumenter.getModule()));
 }
 
 static void modify_runtime_command(std::string &cmd, const std::string &wasm_file) {
@@ -736,7 +860,7 @@ int main(int argc, const char* argv[]) {
             case InspectState::commanding:
             {
                 std::printf("(wabidb-inspect) Enter inspect command\n");
-                std::printf(" > locals(l) | globals(g)\n > ");
+                std::printf(" > locals(l) | globals(g) | backtrace(bt)\n > ");
                 std::cin >> inspect_command;
                 if (inspect_command == "locals" || inspect_command == "l") {
                     inspect_command = "l";
@@ -763,6 +887,22 @@ int main(int argc, const char* argv[]) {
                         if (!type.isNumber()) type = wasm::Type::none;
                         ginfo->types.emplace_back(type);
                         ginfo->names.emplace_back(target_module->globals[i]->name.toString());
+                    }
+                } else if (inspect_command == "backtrace" || inspect_command == "bt") {
+                    inspect_command = "bt";
+                    inspect_print_info = new InspectPrintInfo(InspectPrintInfo::Type::backtrace);
+                    auto binfo = dynamic_cast<InspectPrintInfo::BacktracePrintInfo*>(inspect_print_info->info);
+                    binfo->num = instrumenter.getModule()->functions.size();
+                    binfo->names.resize(binfo->num);
+                    size_t i = 0;
+                    for (const auto &f : instrumenter.getModule()->functions) {
+                        if (f->imported()) {
+                            binfo->names[i] = f->base.toString();
+                        } else {
+                            binfo->names[i] = f->name.toString();
+                        }
+                        binfo->funcname_map.emplace(binfo->names[i], i);
+                        i++;
                     }
                 } else {
                     std::printf(" Error: please enter valid command\n");

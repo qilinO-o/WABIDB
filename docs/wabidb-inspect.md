@@ -9,10 +9,10 @@ You can display help for each commands by `--help` or `-h` flag.
 ## Getting started
 Let's try to debug a WebAssembly binary.
 
-`wabidb-inspect` loads the given binary  and print it out.
+`wabidb-inspect` loads the given binary and print it out.
 
 ```shell
-$ wabidb-inspect fib.wasm "-cmd=wasmtime --invoke fib 1.wasm 8"
+$ wabidb-inspect fib.wasm "-cmd=wasmtime --invoke fib fib.wasm 8"
 (wabidb-inspect) Listing
    (module
     (export "fib" (func $0))
@@ -36,9 +36,10 @@ You need to specify the location and type of inspection.
  > func: 0
  > line: 2
 (wabidb-inspect) Enter inspect command
- > locals(l) | globals(g)
+ > locals(l) | globals(g) | backtrace(bt)
  > l
 ```
+Note that backtrace is a rather experimental function. Wasm `table` is dynamically load at runtime, so our backtrace does not support `call_indirect` as it relies on static instrumentation.
 
 ### Examining inspection result
 `wabidb-inspect` instruments the binary based on previews choice and runs your `-cmd` argument. If the binary is interactive, just interact with it as you like. It will stop at the inspection point. Then inspection result shows up.
@@ -61,4 +62,31 @@ You can continue inspecting or quit the tool. Note that the binary is **NOT** co
  > c
 (wabidb-inspect) Enter inspect position
  > func:
+ ...
+(wabidb-inspect) Enter inspect command
+ > locals(l) | globals(g) | backtrace(bt)
+ > g
+ ...
+(wabidb-inspect) Globals:
+ 0: name: $global$0 = i32(1000)
+ 1: name: $global$1 = i64(2000)
+ 2: name: $global$2 = f32(0.233300)
+ 3: name: $global$3 = f64(0.466600)
+ 4: name: $global$4 = v128(0 0 0 0 0 0 0 0 0x43 0 0 0 0x21 0 0 0)
+(wabidb-inspect) continue(c) | quit(q)
+ > c
+(wabidb-inspect) Enter inspect position
+ > func:
+ ...
+(wabidb-inspect) Enter inspect command
+ > locals(l) | globals(g) | backtrace(bt)
+ > bt
+ ...
+(wabidb-inspect) Backtrace:
+ 0: $1
+ 1: $1
+ 2: $1
+ 3: $1
+ 4: $1
+ 5: $_start (or what runtime directly call)
 ```

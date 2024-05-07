@@ -52,7 +52,7 @@ More examples can be found in [test](./test/) directory.
 ### wabidb-inspect
 `wabidb-inspect` is an interactive debugger for WebAssembly binaries. It can be used for WebAssembly code and WASI applications as well. The tool is runtime-independent and relies on instrumentation technique.
 
-Current features include inspect locals and globals after a specific position of code.
+Current features include inspect locals, globals and backtrace after a specific position of code.
 
 Basic usage:
 ```shell
@@ -109,7 +109,7 @@ These apis are defined in [`instr-utils.hpp`](/src/instr-utils.hpp).
 ```cpp
 // The visitor provided should have signature void(Function*)
 template<typename T> inline void iterDefinedFunctions(wasm::Module* m, T visitor);
-// The visitor provided should have signature void(std::list<wasm::StackInst *>::iterator)
+// The visitor provided should have signature void(std::list<wasm::StackInst *>, std::list<wasm::StackInst *>::iterator&)
 template<typename T> inline void iterInstructions(wasm::Function* func, T visitor);
 ```
 
