@@ -217,6 +217,7 @@ wasm::Function* Instrumenter::getStartFunction() noexcept {
         return nullptr;
     }
     auto t = this->getExport("_start");
+    if (t == nullptr) return nullptr;
     return this->module_->getFunctionOrNull(t->value);
 }
 
