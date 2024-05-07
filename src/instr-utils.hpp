@@ -78,17 +78,19 @@ inline void iterDefinedFunctions(wasm::Module* m, T visitor) {
     }
 }
 
-// The visitor provided should have signature void(std::list<wasm::StackInst *>::iterator)
+// The visitor provided should have signature void(std::list<wasm::StackInst *>, std::list<wasm::StackInst *>::iterator)
 template<typename T>
 inline void iterInstructions(wasm::Function* func, T visitor) {
     assert(func->stackIR != nullptr);
     std::list<wasm::StackInst*> stack_ir_list = _stack_ir_vec2list(*(func->stackIR.get()));
     for (auto iter = stack_ir_list.begin(); iter != stack_ir_list.end(); iter++)  {
-        visitor(iter);
+        visitor(stack_ir_list, iter);
     }
     auto new_stack_ir_vec = _stack_ir_list2vec(stack_ir_list);
     func->stackIR = std::make_unique<wasm::StackIR>(new_stack_ir_vec);
 }
+
+wasm::StackInst* _make_stack_inst(wasm::StackInst::Op op, wasm::Expression* origin, wasm::Module* m);
 
 }
 

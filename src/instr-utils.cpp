@@ -35,7 +35,8 @@ bool _readTextData(const std::string& input, wasm::Module& wasm) {
 
 bool _isControlFlowStructure(wasm::Expression::Id id) {
     return (id == wasm::Expression::Id::BlockId) || (id == wasm::Expression::Id::IfId) 
-        || (id == wasm::Expression::Id::LoopId);
+        || (id == wasm::Expression::Id::LoopId) 
+        || (id == wasm::Expression::Id::TryId) || (id == wasm::Expression::Id::TryTableId);
 }
 
 bool _exp_match_target(const wasm::StackInst* exp, const InstrumentOperation::ExpName &target) {
@@ -87,6 +88,24 @@ std::list<wasm::StackInst*> _stack_ir_vec2list(const wasm::StackIR &stack_ir) {
 wasm::StackIR _stack_ir_list2vec(const std::list<wasm::StackInst*> &stack_ir) {
     wasm::StackIR stack_ir_vec(stack_ir.begin(), stack_ir.end());
     return stack_ir_vec;
+}
+
+wasm::StackInst* _make_stack_inst(wasm::StackInst::Op op, wasm::Expression* origin, wasm::Module* m) {
+    auto* ret = m->allocator.alloc<wasm::StackInst>();
+    ret->op = op;
+    ret->origin = origin;
+    auto stackType = origin->type;
+    if (_isControlFlowStructure(origin->_id)) {
+        if (stackType == wasm::Type::unreachable) {
+            stackType = wasm::Type::none;
+        } else if (op != wasm::StackInst::BlockEnd && op != wasm::StackInst::IfEnd &&
+                op != wasm::StackInst::LoopEnd && op != wasm::StackInst::TryEnd &&
+                op != wasm::StackInst::TryTableEnd) {
+            stackType = wasm::Type::none;
+        }
+    }
+    ret->type = stackType;
+    return ret;
 }
 
 }
