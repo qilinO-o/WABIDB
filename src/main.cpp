@@ -8,7 +8,7 @@ int main(int argc, char **argv) {
 
     InstrumentConfig config;
     config.filename = "../playground/fd_write.wasm";
-    config.targetname = "../playground/instr_result/9.wasm";
+    config.targetname = "../playground/instr_result/10.wasm";
     
     Instrumenter instrumenter;
     InstrumentResult result = instrumenter.setConfig(config);
@@ -44,16 +44,19 @@ int main(int argc, char **argv) {
     InstrumentOperation op1;
     op1.targets.push_back(InstrumentOperation::ExpName{
     wasm::Expression::Id::CallId, std::nullopt, std::nullopt});
-    op1.pre_instructions = {
+    op1.pre_instructions.instructions = {
         "i32.const 20001",
         "drop"
     };
-    op1.post_instructions = {
+    op1.post_instructions.instructions = {
         "i32.const 20002",
-        "drop"
+        "i32.add"
     };
-    //result = instrumenter.instrument({op1,});
-    result = instrumenter.instrumentFunction(op1, "donothing", 0);
+    op1.post_instructions.stack_context = {
+        wasm::Type::i32,
+    };
+    // result = instrumenter.instrument({op1,});
+    result = instrumenter.instrumentFunction(op1, "donothing", 1);
     assert(result == InstrumentResult::success);
     std::printf("## 7 ##\n");
     result = instrumenter.writeBinary();

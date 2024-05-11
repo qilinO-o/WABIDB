@@ -32,14 +32,13 @@ void routine() {
     // example: insert an i32.const 0 and a drop before every call
     InstrumentOperation op1;
     op1.targets.push_back(InstrumentOperation::ExpName{
-      wasm::Expression::Id::CallId, 
-      std::nullopt, std::nullopt
+        wasm::Expression::Id::CallId, 
+        std::nullopt, std::nullopt
     });
-    op1.pre_instructions = {
+    op1.pre_instructions.instructions = {
         "i32.const 0",
         "drop"
     };
-    op1.post_instructions = {};
     Instrumenter instrumenter;
     instrumenter.setConfig(config);
     instrumenter.instrument({op1,});
@@ -63,7 +62,22 @@ Full [tutorial](./docs/wabidb-inspect.md) here.
 
 
 ## API
+### Define the fragment to be inserted
 **Important:** All inserted instructions should be carefully designed to maintain a still balanced stack after insertions.
+
+The data structure below helps you to maintian the stack.
+```cpp
+struct InstrumentFragment {
+    // a list of instructions that will be executed one by one
+    vector<string> instructions;
+    // declare number and types of locals(index) used in upon vector of instructions for validation
+    // must all be basic type (i32 i64 f32 f64 v128)
+    vector<Type> local_types = {};
+    // stack context that the fragment will use
+    // the deduction rule must be followed C|- fragment : [stack_context] -> [stack_context]
+    vector<Type> stack_context = {};
+};
+```
 
 ### Match-and-Insert Instrumentation
 The instrumentation is designed for a match-and-insert semantics. It finds expressions in functions that match any target of a target set, and insert certain instructions before and after the matching point.
@@ -77,19 +91,16 @@ struct InstrumentOperation {
     struct ExpName {
         Expression::Id id;
         union ExpOp {
-            UnaryOp uop;
+            UnaryOp uop; // identify which unary or binary op it is
             BinaryOp bop;
-            // control flow op mark its begin or end
-            StackInst::Op cop;
+            StackInst::Op cop; // control flow op mark its begin or end
         };
-        // nullopt to ignore Op check
         optional<ExpOp> exp_op;
-        // nullopt to ignore type check
         optional<BinaryenType> exp_type;
     };
     vector<ExpName> targets;
-    vector<string> pre_instructions;
-    vector<string> post_instructions;
+    InstrumentFragment pre_instructions;
+    InstrumentFragment post_instructions;
 };
 ```
 > See Op and Type definitions in [`wasm.h`](https://github.com/WebAssembly/binaryen/blob/main/src/wasm.h) and [`binaryen-c.h`](https://github.com/WebAssembly/binaryen/blob/main/src/binaryen-c.h) of [`Binaryen`](https://github.com/WebAssembly/binaryen).
@@ -108,9 +119,9 @@ Above apis may not cover all instrumentation scenarios, so `WABIDB` provides fun
 These apis are defined in [`instr-utils.hpp`](/src/instr-utils.hpp).
 ```cpp
 // The visitor provided should have signature void(Function*)
-template<typename T> inline void iterDefinedFunctions(wasm::Module* m, T visitor);
+template<typename T> inline void iterDefinedFunctions(Module* m, T visitor);
 // The visitor provided should have signature void(std::list<wasm::StackInst *>, std::list<wasm::StackInst *>::iterator&)
-template<typename T> inline void iterInstructions(wasm::Function* func, T visitor);
+template<typename T> inline void iterInstructions(Function* func, T visitor);
 ```
 
 ### Add Declaration
@@ -178,7 +189,7 @@ void scopeClear();
 ```
 
 ## Calling Sequence
-When validating the instrumented instructions, we should guarentee that newly defined `global`s, `import`s and `function`s can be found. Thus, a calling sequence should be obeyed as follow:
+When validating the instrumented instructions, we should guarentee that newly defined `global`s, `import`s, `function`s and etc. can be found. Thus, a calling sequence should be obeyed as follow:
 | Phase | State       | Call                         |
 | :---: | :---------: | :--------------------------: |
 | 1     | read module | `setConfig()`                |
@@ -188,7 +199,7 @@ When validating the instrumented instructions, we should guarentee that newly de
 |       |             | `addPassiveDataSegment()`    |
 |       |             | `addFunctions()`             |
 |       |             | `addExport()`                |
-| 3     | instrument  | `instrument()`               |
+| 3     | instrument  | `instrument()` & ...         |
 | 4     | write back  | `writeBinary()`              |
 
 All `get[*]()` can be called in phase 2 & 3. Scope APIs should be called before phase 3.
@@ -200,3 +211,5 @@ Now use an experimental WAT-parser of `Binaryen`, which may be switched when [`i
 
 ## Misc
 I guess "WABIDB" should be pronounced as "Wabi Debugger", anyway.
+
+Get the idea of `wabidb-inspect` from [`wasminspect`](https://github.com/kateinoigakukun/wasminspect), unfortunately it is not updated for a long time.

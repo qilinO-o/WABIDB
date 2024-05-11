@@ -11,13 +11,7 @@ static std::string _random_prefix_generator() {
     return str.substr(0, 8);
 }
 
-// transform two lists to a well-formed func string like .wat
-static std::string _makeIRString(const std::vector<std::string>& pre_list, 
-                        const std::vector<std::string>& post_list,
-                        int func_num, 
-                        const std::string& random_prefix,
-                        const std::vector<wasm::Type> &local_types) 
-{
+static std::string _make_func_param(const std::vector<wasm::Type> &local_types) {
     std::string params_str = "";
     if (local_types.size() > 0) {
         params_str = " (param";
@@ -28,18 +22,58 @@ static std::string _makeIRString(const std::vector<std::string>& pre_list,
         }
         params_str += ")";
     }
-    std::string funcs_str = "(func $" + random_prefix + std::to_string(func_num) + "_1" + params_str + "\n";
-    for (const auto& instr_str : pre_list) {
-        funcs_str += instr_str;
-        funcs_str += "\n";
+    return params_str;
+}
+
+static std::string _make_func_result(const std::vector<wasm::Type> &local_types) {
+    std::string params_str = "";
+    if (local_types.size() > 0) {
+        params_str = " (result";
+        for (const auto t : local_types) {
+            assert(t.isBasic());
+            params_str += " ";
+            params_str += t.toString();
+        }
+        params_str += ")";
     }
-    funcs_str += "unreachable)\n(func $" + random_prefix + std::to_string(func_num) + "_2" + params_str + "\n";
-    for (const auto& instr_str : post_list) {
-        funcs_str += instr_str;
-        funcs_str += "\n";
+    return params_str;
+}
+
+static std::string _make_func_str(const InstrumentFragment& fragment,
+                                int func_num, 
+                                const std::string &random_prefix,
+                                const std::string &suffix) {
+    const std::string const_exprs[5] = {
+        "i32.const 0\n",
+        "i64.const 0\n",
+        "f32.const 0\n",
+        "f64.const 0\n",
+        "v128.const i32x4 0x00 0x00 0x00 0x00\n"
+    };
+    std::string params_str = _make_func_param(fragment.local_types);
+    std::string result_str = _make_func_result(fragment.stack_context);
+    std::string func_str = "(func $" + random_prefix + std::to_string(func_num) + suffix + params_str + result_str + "\n";
+    for (const auto& t : fragment.stack_context) {
+        assert(t.isBasic());
+        func_str += const_exprs[t.getID() - 2];
     }
-    funcs_str += "unreachable)\n";
-    return funcs_str;
+    for (const auto& instr_str : fragment.instructions) {
+        func_str += instr_str;
+        func_str += "\n";
+    }
+    func_str += ")\n";
+    return func_str;
+}
+
+// transform two lists to a well-formed func string like .wat
+static std::string _makeFuncsString(const InstrumentFragment& pre_list, 
+                        const InstrumentFragment& post_list,
+                        int func_num, 
+                        const std::string& random_prefix) 
+{
+    std::string pre_func_str = _make_func_str(pre_list, func_num, random_prefix, "_1");
+    std::string post_func_str = _make_func_str(post_list, func_num, random_prefix, "_2");
+    return pre_func_str + post_func_str;
 }
 
 // transform all operations to a well-formed module string like .wat
@@ -53,8 +87,8 @@ static void _makeModuleString(std::string& module_str,
     module_str.pop_back();
     int op_num = 1;
     for (const auto& operation : operations) {
-        module_str += _makeIRString(operation.pre_instructions, operation.post_instructions,
-                                    op_num, random_prefix, operation.local_types);
+        module_str += _makeFuncsString(operation.pre_instructions, operation.post_instructions,
+                                    op_num, random_prefix);
         op_num++;
     }
     module_str += ")";
@@ -66,7 +100,7 @@ static void _makeModuleString(std::string& module_str,
 // return nullptr aka InstrumentResult::instrument_error
 AddedInstructions* OperationBuilder::makeOperations(wasm::Module* &mallocator, const std::vector<InstrumentOperation> &operations) noexcept {
     AddedInstructions* added_instructions = new AddedInstructions;
-    added_instructions->vec.resize(operations.size());
+    added_instructions->resize(operations.size());
     auto random_prefix = _random_prefix_generator();
     
     std::stringstream mstream;
@@ -104,24 +138,22 @@ AddedInstructions* OperationBuilder::makeOperations(wasm::Module* &mallocator, c
     pass_runner.add("optimize-stack-ir");
     pass_runner.run();
 
-    int op_num = 1;
-    for (const auto& _ : operations) {
-        std::string op_num_str = std::to_string(op_num);
+    for (int op_num = 0; op_num < operations.size(); op_num++) {
+        std::string op_num_str = std::to_string(op_num + 1);
         auto func1 = BinaryenGetFunction(mallocator, (random_prefix + op_num_str + "_1").c_str());
         auto func2 = BinaryenGetFunction(mallocator, (random_prefix + op_num_str + "_2").c_str());
         assert(func1 != nullptr);
         assert(func2 != nullptr);
         assert(func1->stackIR.get() != nullptr);
         assert(func2->stackIR.get() != nullptr);
-        for (auto i = 0; i < func1->stackIR.get()->size() - 1; i++) {
-            added_instructions->vec[op_num - 1].pre_instructions.push_back((*(func1->stackIR.get()))[i]);
+        for (auto i = operations[op_num].pre_instructions.stack_context.size(); i < func1->stackIR.get()->size(); i++) {
+            (*added_instructions)[op_num].pre_instructions.push_back((*(func1->stackIR.get()))[i]);
         }
-        for (auto i = 0; i < func2->stackIR.get()->size() - 1; i++) {
-            added_instructions->vec[op_num - 1].post_instructions.push_back((*(func2->stackIR.get()))[i]);
+        for (auto i = operations[op_num].post_instructions.stack_context.size(); i < func2->stackIR.get()->size(); i++) {
+            (*added_instructions)[op_num].post_instructions.push_back((*(func2->stackIR.get()))[i]);
         }
         BinaryenRemoveFunction(mallocator, func1->name.toString().c_str());
         BinaryenRemoveFunction(mallocator, func2->name.toString().c_str());
-        op_num++;
     }
 
     return added_instructions;

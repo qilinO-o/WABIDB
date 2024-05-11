@@ -70,8 +70,7 @@ public:
                             BinaryenType type, 
                             bool if_mutable, 
                             BinaryenLiteral value) noexcept;
-    // add functions at one time
-    // cannot be called twice!
+    // add functions at one time to avoid cannot find call target problems
     bool addFunctions(const std::vector<std::string> &names,
                     const std::vector<std::string> &func_bodies) noexcept;
     // Multiple memories proposal needed!

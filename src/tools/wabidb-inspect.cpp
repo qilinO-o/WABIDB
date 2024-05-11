@@ -489,35 +489,35 @@ static void _make_variable_op(const InspectPrintInfo::PrintInfo &info, Instrumen
     std::string item;
     if (cmd == 'l') {
         item = "local";
-        op.local_types = info.types;
+        op.post_instructions.local_types = info.types;
     } else if (cmd == 'g') {
         item = "global";
     } else assert(false);
     for (auto i = 0; i < info.num; i++) {
         if (info.types[i] == wasm::Type::none) continue;
-        op.post_instructions.insert(op.post_instructions.end(), {
+        op.post_instructions.instructions.insert(op.post_instructions.instructions.end(), {
             "global.get $__instr_iobuf_addr",
             "global.get $__instr_iobuf_len",
             "i32.add",
             item + ".get " + std::to_string(i),
         });
         if (info.types[i] == wasm::Type::i32) {
-            op.post_instructions.emplace_back("i32.store");
-            op.post_instructions.emplace_back("i32.const 4");
+            op.post_instructions.instructions.emplace_back("i32.store");
+            op.post_instructions.instructions.emplace_back("i32.const 4");
         } else if (info.types[i] == wasm::Type::i64) {
-            op.post_instructions.emplace_back("i64.store");
-            op.post_instructions.emplace_back("i32.const 8");
+            op.post_instructions.instructions.emplace_back("i64.store");
+            op.post_instructions.instructions.emplace_back("i32.const 8");
         } else if (info.types[i] == wasm::Type::f32) {
-            op.post_instructions.emplace_back("f32.store");
-            op.post_instructions.emplace_back("i32.const 4");
+            op.post_instructions.instructions.emplace_back("f32.store");
+            op.post_instructions.instructions.emplace_back("i32.const 4");
         } else if (info.types[i] == wasm::Type::f64) {
-            op.post_instructions.emplace_back("f64.store");
-            op.post_instructions.emplace_back("i32.const 8");
+            op.post_instructions.instructions.emplace_back("f64.store");
+            op.post_instructions.instructions.emplace_back("i32.const 8");
         } else if (info.types[i] == wasm::Type::v128) {
-            op.post_instructions.emplace_back("v128.store");
-            op.post_instructions.emplace_back("i32.const 16");
+            op.post_instructions.instructions.emplace_back("v128.store");
+            op.post_instructions.instructions.emplace_back("i32.const 16");
         }
-        op.post_instructions.insert(op.post_instructions.end(), {
+        op.post_instructions.instructions.insert(op.post_instructions.instructions.end(), {
             "global.get $__instr_iobuf_len",
             "i32.add",
             "global.set $__instr_iobuf_len",
@@ -526,7 +526,7 @@ static void _make_variable_op(const InspectPrintInfo::PrintInfo &info, Instrumen
 }
 
 static void _make_write_op(InstrumentOperation &op, const CommonWasmBuilder &builder) {
-    op.post_instructions.insert(op.post_instructions.end(), 
+    op.post_instructions.instructions.insert(op.post_instructions.instructions.end(), 
     {
         // construct ciovec
         "global.get $__instr_base_addr",
@@ -598,7 +598,7 @@ static void _make_bt_instrument(Instrumenter &instrumenter,
                                 const std::string &inspect_func_name,
                                 const size_t inspect_line_num) {
     InstrumentOperation hook_call;
-    hook_call.pre_instructions = {
+    hook_call.pre_instructions.instructions = {
         "global.get $__instr_iobuf_addr",
         "global.get $__instr_iobuf_len",
         "i32.add",
@@ -614,7 +614,7 @@ static void _make_bt_instrument(Instrumenter &instrumenter,
         size_t line_num = 0;
         OperationBuilder builder;
         auto added_instructions = builder.makeOperations(instrumenter.getModule(), {hook_call});
-        auto hook_insts = added_instructions->vec[0].pre_instructions;
+        auto hook_insts = (*added_instructions)[0].pre_instructions;
 
         auto inst_vistor = [&hook_insts, &info, &instrumenter, &if_in_inspect_func, &line_num, &inspect_line_num]
                                     (std::list<wasm::StackInst*> &l, std::list<wasm::StackInst*>::iterator &iter) {
@@ -663,7 +663,7 @@ static void _make_bt_instrument(Instrumenter &instrumenter,
     auto start_func = instrumenter.getStartFunction();
     if (start_func != nullptr) {
         InstrumentOperation temp;
-        temp.post_instructions.emplace_back("call $__instr_load_data");
+        temp.post_instructions.instructions.emplace_back("call $__instr_load_data");
         InstrumentResult iresult = instrumenter.instrumentFunction(temp, start_func->name.toString().c_str(), 0);
         assert(iresult == InstrumentResult::success);
     } else {
@@ -690,12 +690,12 @@ static void do_pre_instrument(Instrumenter &instrumenter,
 
     InstrumentOperation op;
     if (inspect_command == "l" || inspect_command == "g") {
-        op.post_instructions.emplace_back("call $__instr_load_data");
+        op.post_instructions.instructions.emplace_back("call $__instr_load_data");
         _make_variable_op(*(print_info.info), op, inspect_command[0]);
     }
     _make_write_op(op, wasm_builder);
-    op.post_instructions.emplace_back("i32.const 10");
-    op.post_instructions.emplace_back("call $" + wasm_builder.getWasiName("proc_exit").value());
+    op.post_instructions.instructions.emplace_back("i32.const 10");
+    op.post_instructions.instructions.emplace_back("call $" + wasm_builder.getWasiName("proc_exit").value());
     InstrumentResult iresult = instrumenter.instrumentFunction(op, inspect_func_name.c_str(), inspect_line_num);
     assert(iresult == InstrumentResult::success);
     

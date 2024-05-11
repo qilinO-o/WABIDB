@@ -123,10 +123,10 @@ InstrumentResult Instrumenter::instrument(const std::vector<InstrumentOperation>
                     continue;
                 } 
                 stack_ir_list.splice(i, _stack_ir_vec2list(
-                    added_instructions->vec[op_num].pre_instructions));
+                    (*added_instructions)[op_num].pre_instructions));
                 std::advance(i, 1);
                 stack_ir_list.splice(i, _stack_ir_vec2list(
-                    added_instructions->vec[op_num].post_instructions));
+                    (*added_instructions)[op_num].post_instructions));
                 std::advance(i, -1);
                 break;
             }
@@ -473,7 +473,7 @@ InstrumentResult Instrumenter::instrumentFunction(const InstrumentOperation &ope
     // perform operation on the pos
     auto iter = stack_ir_list.begin();
     std::advance(iter, pos);
-    stack_ir_list.splice(iter, _stack_ir_vec2list(added_instructions->vec[0].post_instructions));
+    stack_ir_list.splice(iter, _stack_ir_vec2list((*added_instructions)[0].post_instructions));
 
     // write back the modified stack ir list to the func
     auto new_stack_ir_vec = _stack_ir_list2vec(stack_ir_list);

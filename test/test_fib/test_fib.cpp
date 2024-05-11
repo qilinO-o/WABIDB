@@ -147,7 +147,7 @@ int main() {
     InstrumentOperation op1;
     op1.targets.push_back(InstrumentOperation::ExpName{
     wasm::Expression::Id::CallId, std::nullopt, std::nullopt});
-    op1.pre_instructions = {
+    op1.pre_instructions.instructions = {
         "call $add_call",
     };
     op1.post_instructions = {};

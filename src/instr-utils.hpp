@@ -16,16 +16,26 @@ const wasm::FeatureSet FEATURE_SPEC = wasm::FeatureSet::BulkMemory |
                                     wasm::FeatureSet::ReferenceTypes |
                                     wasm::FeatureSet::TruncSat;
 
+struct InstrumentFragment {
+    std::vector<std::string> instructions;
+    // declare number and types of locals(index) used in upon vectors for validation
+    // must all be basic type (i32 i64 f32 f64 v128)
+    std::vector<wasm::Type> local_types = {};
+    // stack context that the fragment will use
+    // the deduction rule must be followed C|- fragment : [stack_context] -> [stack_context]
+    // now only support basic type (i32 i64 f32 f64 v128) (need reftype)
+    std::vector<wasm::Type> stack_context = {};
+};
+
 // struct to define a certain operation
 // add /add_instructions/ at /location/ of the current expression that matches /targets/
 struct InstrumentOperation final {
     struct ExpName {
         wasm::Expression::Id id;
         union ExpOp {
-            wasm::UnaryOp uop;
+            wasm::UnaryOp uop; // identify which unary or binary op it is
             wasm::BinaryOp bop;
-            // control flow op mark its begin or end
-            wasm::StackInst::Op cop;
+            wasm::StackInst::Op cop; // control flow op mark its begin or end
             // to be added more op id
         };
         // nullopt to ignore Op check
@@ -35,22 +45,18 @@ struct InstrumentOperation final {
     };
     // targets of all operations should be *Orthogonal* !
     std::vector<ExpName> targets;
-    std::vector<std::string> pre_instructions;
-    std::vector<std::string> post_instructions;
-    // declare number and types of locals(index) used in upon vectors for validation
-    // must all be basic type (i32 i64 f32 f64 v128)
-    std::vector<wasm::Type> local_types = {};
+    InstrumentFragment pre_instructions;
+    InstrumentFragment post_instructions;
 };
 
 // 1 to 1 related to config.operations
 // data structure for transformed instruction string to stack ir
-struct AddedInstructions {
-    struct AddedInstruction {
-        std::vector<wasm::StackInst*> pre_instructions;
-        std::vector<wasm::StackInst*> post_instructions;
-    };
-    std::vector<AddedInstruction> vec;
+struct AddedInstruction {
+    std::vector<wasm::StackInst*> pre_instructions;
+    std::vector<wasm::StackInst*> post_instructions;
 };
+using AddedInstructions = std::vector<AddedInstruction>;
+
 
 std::ostream& _out_stackir_module(std::ostream &o, wasm::Module *module);
 
