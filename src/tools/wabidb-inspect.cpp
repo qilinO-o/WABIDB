@@ -20,13 +20,16 @@ enum InspectState {
     end,
 };
 
-using v128_t = struct{ 
-    char data[16];
+using v128_t = struct{
+    union {
+        char data[16];
+        uint32_t data_i32[4];
+    };
 };
 
 std::ostream& operator<<(std::ostream& o, v128_t &t) {
-    for (auto i = 0; i < 16; i++) {
-        o << std::hex << std::showbase << (int)t.data[i] << std::noshowbase << std::dec << ((i < 15) ? " " : "");
+    for (auto i = 0; i < 4; i++) {
+        o << std::hex << std::showbase << t.data_i32[i] << std::noshowbase << std::dec << ((i < 3) ? " " : "");
     }
     return o;
 }
@@ -182,16 +185,16 @@ private:
             float number_le;
             ifile.read((char *)(&number_le), 4);
             float number_be = swap_endian(number_le);
-            std::printf("(%f)\n", number_be);
+            std::printf("(%.8f)\n", number_be);
         } else if (type == wasm::Type::f64) {
             assert(sizeof(double) == 8);
             double number_le;
             ifile.read((char *)(&number_le), 8);
             double number_be = swap_endian(number_le);
-            std::printf("(%lf)\n", number_be);
+            std::printf("(%.15lf)\n", number_be);
         } else if (type == wasm::Type::v128) {
             v128_t number_le;
-            ifile.read((char *)(&number_le), 16);
+            ifile.read(number_le.data, 16);
             v128_t number_be = swap_endian(number_le);
             std::cout << "(" << number_be << ")" << std::endl;
         } else assert(false);
