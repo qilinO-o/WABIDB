@@ -103,9 +103,9 @@ struct InstrumentOperation {
     InstrumentFragment post_instructions;
 };
 ```
-> See Op and Type definitions in [`wasm.h`](https://github.com/WebAssembly/binaryen/blob/main/src/wasm.h) and [`binaryen-c.h`](https://github.com/WebAssembly/binaryen/blob/main/src/binaryen-c.h) of [`Binaryen`](https://github.com/WebAssembly/binaryen).
+> See Op and Type definitions in [`wasm.h`](https://github.com/WebAssembly/binaryen/blob/main/src/wasm.h), [`binaryen-c.h`](https://github.com/WebAssembly/binaryen/blob/main/src/binaryen-c.h) and [`wasm-stack.h`](https://github.com/WebAssembly/binaryen/blob/main/src/wasm-stack.h) of [`Binaryen`](https://github.com/WebAssembly/binaryen).
 
-### Position-Insert Instrumentattion
+### Position-Insert Instrumentation
 Insert operation.post_instructions after the line of pos of the named function. Instructions are indexed from 1 and pos = 0 equals to insert at the beginning of the function.
 ```cpp
 InstrumentResult instrumentFunction(const InstrumentOperation &operation,
